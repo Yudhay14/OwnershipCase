@@ -6,6 +6,7 @@ import GapCoPanel from "./components/GapCoPanel.jsx";
 import GapCoPage from "./pages/GapCoPage.jsx";
 import HelpDialog from "./components/HelpDialog.jsx";
 import GapCoHelpDialog from "./components/GapCoHelpDialog.jsx";
+import AdminDialog from "./components/AdminDialog.jsx";
 import ToastNotification from "./components/ToastNotification.jsx";
 import { useCheckerApp } from "./hooks/useCheckerApp.js";
 import { useGapCoApp } from "./hooks/useGapCoApp.js";
@@ -29,10 +30,11 @@ export default function App() {
   const [menu, setMenu] = useState("ownership");
   const [helpOpen, setHelpOpen] = useState(false);
   const [gapHelpOpen, setGapHelpOpen] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
 
   return (
     <div className="flex min-h-screen flex-col bg-canvas lg:h-screen lg:flex-row lg:overflow-hidden">
-      <AppMenu active={menu} onChange={setMenu} />
+      <AppMenu active={menu} onChange={setMenu} onOpenAdmin={() => setAdminOpen(true)} />
 
       {menu === "ownership" ? (
         <>
@@ -48,6 +50,7 @@ export default function App() {
 
       <HelpDialog open={helpOpen} onClose={() => setHelpOpen(false)} />
       <GapCoHelpDialog open={gapHelpOpen} onClose={() => setGapHelpOpen(false)} />
+      <AdminDialog open={adminOpen} onClose={() => setAdminOpen(false)} />
       <ToastNotification toasts={toasts.items} onDismiss={toasts.dismiss} />
     </div>
   );

@@ -85,6 +85,26 @@ check(
 const masterBlock = await page.locator("header").getByText("Master Agent").locator("..").innerText();
 check("header shows Master Agent 234", /234/.test(masterBlock), masterBlock.replace(/\s+/g, " "));
 
+// Label menu harus muat di dalam rail - pernah kejadian "Ownership" meluber keluar.
+const railLabels = await page.evaluate(() =>
+  [...document.querySelectorAll("[data-menu-label]")].map((el) => {
+    const nav = el.closest("#app-menu");
+    return {
+      text: el.textContent.trim(),
+      clipped: el.getBoundingClientRect().right > nav.getBoundingClientRect().right + 0.5,
+      slack: Math.round(
+        el.closest("button").getBoundingClientRect().width -
+          el.getBoundingClientRect().width
+      ),
+    };
+  })
+);
+check(
+  "menu labels fit inside the rail",
+  railLabels.length === 2 && railLabels.every((label) => !label.clipped),
+  railLabels.map((label) => `${label.text}=${label.clipped ? "CLIPPED" : `ok(+${label.slack}px)`}`).join(", ")
+);
+
 /* --------------------------------------------------------- layout kiri/kanan */
 const panelBox = await page.locator("#control-panel").boundingBox();
 const workspaceBox = await page.locator("#workspace").boundingBox();
@@ -402,6 +422,81 @@ check(
   "switching back restores the Ownership control panel",
   await page.locator("#control-panel").isVisible()
 );
+
+/* ------------------------------------------------------------------ admin */
+await page.locator("#admin-open").click();
+await page.waitForTimeout(350);
+check("admin logo opens the login dialog", await page.getByRole("dialog").isVisible());
+
+await page.locator("#admin-user").fill("Administrator");
+await page.locator("#admin-pass").fill("salah");
+await page.getByRole("button", { name: "Masuk" }).click();
+await page.waitForTimeout(250);
+check(
+  "wrong admin password is rejected",
+  await page.locator("#admin-login-error").isVisible()
+);
+
+await page.locator("#admin-pass").fill("Password*14");
+await page.getByRole("button", { name: "Masuk" }).click();
+await page.waitForTimeout(300);
+check(
+  "correct credentials open the agent panel",
+  (await page.locator("#admin-regular-count").innerText()).trim() === "234"
+);
+
+await page.locator("#admin-add-name").fill("Test Admin Agent");
+await page.locator("#admin-add-ldap").fill("VADS.TESTADMIN");
+await page.locator("#admin-add-submit").click();
+await page.waitForTimeout(250);
+check(
+  "adding an agent increases the Agent Utama count",
+  (await page.locator("#admin-regular-count").innerText()).trim() === "235"
+);
+
+await page.getByRole("button", { name: "Selesai" }).click();
+await page.waitForTimeout(350);
+check("admin dialog closes", (await page.getByRole("dialog").count()) === 0);
+
+const adminMasterBlock = await page
+  .locator("header")
+  .getByText("Master Agent")
+  .locator("..")
+  .innerText();
+check(
+  "header Master Agent follows the edited list",
+  /235/.test(adminMasterBlock),
+  adminMasterBlock.replace(/\s+/g, " ")
+);
+
+// Perubahan harus tersimpan di browser (localStorage), bukan hanya di memori.
+await page.reload({ waitUntil: "networkidle" });
+await page.waitForTimeout(500);
+const masterAfterReload = await page
+  .locator("header")
+  .getByText("Master Agent")
+  .locator("..")
+  .innerText();
+check(
+  "agent change survives a reload",
+  /235/.test(masterAfterReload),
+  masterAfterReload.replace(/\s+/g, " ")
+);
+
+await page.locator("#admin-open").click();
+await page.waitForTimeout(300);
+await page.locator("#admin-user").fill("Administrator");
+await page.locator("#admin-pass").fill("Password*14");
+await page.getByRole("button", { name: "Masuk" }).click();
+await page.waitForTimeout(300);
+await page.locator("#admin-reset").click();
+await page.waitForTimeout(250);
+check(
+  "reset restores the base list",
+  (await page.locator("#admin-regular-count").innerText()).trim() === "234"
+);
+await page.getByRole("button", { name: "Selesai" }).click();
+await page.waitForTimeout(300);
 
 /* --------------------------------------------------------------- health */
 check("no page errors", pageErrors.length === 0, pageErrors.join(" | "));

@@ -3,7 +3,7 @@ import { formatDateToString } from "./dates.js";
 import { getColumn } from "./columns.js";
 import { findMasterAgent, findRegularAgent, findSupportAgent } from "./agents.js";
 import { getScheduleForAgent, isEligibleSchedule } from "./schedule.js";
-import { agentMaster } from "../data/agents.js";
+import { getEffectiveAgentMaster } from "./agentStore.js";
 import { normalizeKey } from "./text.js";
 
 /**
@@ -143,7 +143,8 @@ export function distributeCheckers(finalMergedData, scheduleJakarta, scheduleJog
 
   // Eligible receiver list: schedule starts from 05:00 up to before 15:00.
   // This includes 5a, 5b, 5:30, 6, ..., 14a, etc.
-  const eligibleAgents = agentMaster
+  // Urutan penerima mengikuti daftar Agent Utama efektif (termasuk tambahan admin).
+  const eligibleAgents = getEffectiveAgentMaster()
     .map((agent) => allSchedule[normalizeKey(agent.name)])
     .filter(Boolean)
     .filter((info) => isEligibleSchedule(info.schedule));

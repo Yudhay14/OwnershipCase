@@ -3,7 +3,7 @@ import { readLogBiasa, readLogWCT } from "../utils/readWorkbooks.js";
 import { parseScheduleWorkbook, getEligibleCount } from "../utils/schedule.js";
 import { computeMergedData, distributeCheckers } from "../utils/processing.js";
 import { exportExcelCombined } from "../utils/exportExcel.js";
-import { MASTER_AGENT_COUNT } from "../utils/agents.js";
+import { useAgentStore } from "./useAgentStore.js";
 
 /**
  * Orchestrates the LOCKED business flow (upload -> schedule -> filter -> process
@@ -28,6 +28,9 @@ const PROCESS_STAGES = [
  *   notifikasi. Yang berubah hanya kepemilikan state toast - pesannya tetap sama.
  */
 export function useCheckerApp({ pushToast }) {
+  // Jumlah Master Agent ikut daftar efektif, jadi berubah saat admin menambah/menghapus.
+  const { masterCount } = useAgentStore();
+
   const [files, setFiles] = useState({
     biasa: { ...EMPTY_FILE },
     wct: { ...EMPTY_FILE },
@@ -239,7 +242,7 @@ export function useCheckerApp({ pushToast }) {
     hasProcessed,
     counts,
     eligibleCount,
-    masterAgentCount: MASTER_AGENT_COUNT,
+    masterAgentCount: masterCount,
     hasSchedule,
     isProcessing,
     processStage,

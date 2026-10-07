@@ -24,10 +24,10 @@ npm run preview    # serve hasil build
 ## Verifikasi
 
 ```bash
-npm test                         # 20 test: parity (OD + GAPCO) + pipeline + export
+npm test                         # 28 test: parity (OD + GAPCO) + pipeline + export + agentStore
 node scripts/make-fixtures.mjs   # generate Excel fixture (OD + GAP CO)
 npm run preview -- --port 4188   # jalankan di terminal lain (pakai port yang bebas)
-node scripts/e2e-smoke.mjs http://localhost:4188/   # 67 check e2e di Chrome asli
+node scripts/e2e-smoke.mjs http://localhost:4188/   # 77 check e2e di Chrome asli
 ```
 
 `tests/parity.test.mjs` membandingkan helper hasil port dengan fungsi asli di
@@ -41,7 +41,7 @@ sumber kebenaran uji parity.
 ```
 ┌──────┬──────────────────────┬────────────────────────────────────┐
 │ MENU │  CONTROL PANEL 304px │  Header compact                    │
-│ 78px │                      ├────────────────────────────────────┤
+│ 96px │                      ├────────────────────────────────────┤
 │      │  1. File Log Biasa   │  Metric bar (4 metrik, satu baris) │
 │  OD  │  2. File CO WCT      ├────────────────────────────────────┤
 │ GAP  │  3. Schedule Jakarta │  Data Table                        │
@@ -54,9 +54,10 @@ sumber kebenaran uji parity.
 └──────┴──────────────────────┴────────────────────────────────────┘
 ```
 
-Menu rail kiri berisi **OD** (Ownership Digital) dan **GAP CO**. Menu aktif menentukan control
-panel + workspace yang dirender, jadi tiap menu memakai pola yang sama: panel kiri + workspace
-kanan.
+Menu rail kiri berisi **Ownership** dan **GAP CO**, plus tombol **admin** di pojok bawah. Menu
+aktif menentukan control panel + workspace yang dirender, jadi tiap menu memakai pola yang sama:
+panel kiri + workspace kanan. Lebar rail 96px dipilih agar label muat tanpa terpotong (dijaga oleh
+check e2e “menu labels fit inside the rail”).
 
 - **Desktop** tinggi terkunci `100vh`: halaman tidak ikut memanjang, tabel punya scroll sendiri.
 - **Mobile** satu kolom: control panel di atas, workspace di bawah, halaman boleh di-scroll.
@@ -71,7 +72,8 @@ src/
 │   ├── WorkspacePage.jsx    # workspace Ownership Digital: header + metric bar + table
 │   └── GapCoPage.jsx        # workspace GAP CO: header + banner + metric bar + table
 ├── components/              # presentation only
-│   ├── AppMenu.jsx          # menu rail (Ownership Digital / GAP CO)
+│   ├── AppMenu.jsx          # menu rail (Ownership Digital / GAP CO) + logo admin
+│   ├── AdminDialog.jsx      # login admin + kelola daftar Agent Utama/Support
 │   ├── LeftPanel.jsx        # control panel Ownership Digital (field 1-5 + tombol)
 │   ├── GapCoPanel.jsx       # control panel GAP CO (field 1-3 + tombol)
 │   ├── FileField.jsx        # field upload + status + nama file
@@ -87,12 +89,16 @@ src/
 │   ├── GapCoHelpDialog.jsx  # bantuan GAP CO
 │   ├── ToastNotification.jsx
 │   └── CountUp.jsx
+├── config/
+│   └── admin.js             # kredensial gerbang admin (gerbang UI, bukan keamanan)
 ├── hooks/
 │   ├── useToasts.js         # tumpukan notifikasi bersama
+│   ├── useAgentStore.js     # binding React untuk daftar agent yang bisa diubah
 │   ├── useCheckerApp.js     # orkestrasi Ownership Digital (tanpa algoritma)
 │   └── useGapCoApp.js       # orkestrasi GAP CO (tanpa algoritma)
 ├── utils/                   # LOCKED business logic
 │   ├── text.js · dates.js · columns.js · agents.js
+│   ├── agentStore.js        # override tambah/hapus agent (localStorage)
 │   ├── schedule.js          # parsing Absenteeism/Absenteism, eligibility 05-14
 │   ├── processing.js        # computeMergedData, distributeCheckers
 │   ├── readWorkbooks.js     # reader Log Biasa + WCT
@@ -123,6 +129,35 @@ node scripts/extract-agents.mjs
 | Eligibility | Schedule mulai jam 05:00 s/d sebelum 15:00 |
 | Checker | Creator duty 05-14 → ownership. Schedule 15+/X/OFF/Support → pool redistribusi, dibagi rata round-robin. Tanpa balancing tambahan |
 | Export | `No, KATEGORI DATA, CASE_ID, CREATE_DATE, CREATOR, SCHEDULE, LOG IN ID, MSISDN, ID 1, CHECKER` — tanpa CHECKER TYPE; CASE_ID sebagai text; nama file tetap |
+| Agent list | Daftar dasar di `src/data/agents.js` (234 Agent Utama + 27 Support) tidak pernah ditulis ulang. Admin bisa menambah/menghapus lewat lapisan override (lihat bagian Admin) |
+
+---
+
+## Admin: kelola daftar agent
+
+Klik **logo di pojok bawah menu rail** untuk membuka login admin, lalu masuk dengan
+kredensial di `src/config/admin.js`. Setelah masuk, panel memungkinkan:
+
+- **Tambah Agent Utama** (nama + LDAP opsional)
+- **Hapus Agent Utama** (dengan konfirmasi dua langkah, bisa dipulihkan)
+- **Tambah / hapus agent Support**
+- **Kembalikan daftar awal** untuk membatalkan semua perubahan
+
+Cara kerjanya:
+
+- Daftar dasar tetap utuh di `src/data/agents.js`; perubahan disimpan sebagai override di
+  `localStorage` (`od.agentOverrides.v1`).
+- `agentStore.js` menggabungkan daftar dasar + tambahan - hapus, lalu `agents.js` membangun
+  ulang index lookup-nya. Aturan pencocokan (nama/LDAP, alias `Imeilia Salma`) tidak berubah.
+- Tanpa override, daftar efektif **identik** dengan daftar dasar (diuji di
+  `tests/agentStore.test.mjs`).
+- Setelah mengubah daftar, klik **“1. Munculkan Data”** lagi agar data diproses ulang
+  dengan daftar yang baru.
+
+> **Catatan keamanan:** aplikasi ini murni front-end, jadi login admin hanyalah **gerbang UI**,
+> bukan proteksi data. Kredensial ada di dalam bundle JavaScript dan `localStorage` bisa diubah
+> manual oleh siapa pun yang memakai browser ini. Bila butuh proteksi nyata, diperlukan
+> backend/autentikasi server.
 
 ---
 
@@ -180,3 +215,5 @@ Kartu **"Agent WCT Eligible"** pada versi lama menampilkan `cWCTGlobal` (identik
   dengan memuat modul Excel secara lazy (dynamic import) saat tombol diklik.
 - Validasi dan isi pesan notifikasi identik dengan versi lama.
 - Tidak ada pagination karena versi lama juga tidak memilikinya.
+- Kartu **“Master Agent”** di header mengikuti daftar efektif, jadi angkanya naik/turun
+  setelah admin menambah atau menghapus agent.
