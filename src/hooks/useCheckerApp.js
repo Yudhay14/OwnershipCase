@@ -3,6 +3,13 @@ import { readLogBiasa, readLogWCT } from "../utils/readWorkbooks.js";
 import { parseScheduleWorkbook, getEligibleCount } from "../utils/schedule.js";
 import { computeMergedData, distributeCheckers } from "../utils/processing.js";
 import { exportExcelCombined } from "../utils/exportExcel.js";
+import { getOverrides } from "../utils/agentStore.js";
+import {
+  WORKER_SUPPORTED,
+  clearLogInWorker,
+  mergeInWorker,
+  parseLogInWorker,
+} from "../utils/checkerWorker.js";
 import { useAgentStore } from "./useAgentStore.js";
 
 /**
@@ -11,6 +18,10 @@ import { useAgentStore } from "./useAgentStore.js";
  *
  * No algorithm lives here: every rule is delegated to src/utils/*, which are
  * ports of the legacy code.
+ *
+ * File log (WCT bisa 39-50 MB) diparse dan digabung di Web Worker supaya main
+ * thread tidak beku. Worker memakai fungsi yang sama dari src/utils/*, jadi
+ * hasilnya identik dengan jalur main thread.
  */
 
 const EMPTY_FILE = { name: "", size: 0, lastModified: 0, status: "idle", rows: 0 };
@@ -49,9 +60,10 @@ export function useCheckerApp({ pushToast }) {
   const [counts, setCounts] = useState({ biasa: 0, wct: 0, redis: 0 });
 
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isParsing, setIsParsing] = useState(false);
   const [processStage, setProcessStage] = useState(PROCESS_STAGES[0]);
 
-  // Raw log rows are never rendered, so they stay in refs.
+  // Raw log rows: hanya dipakai di jalur fallback main thread (tanpa Worker).
   const rawBiasaRef = useRef([]);
   const rawWCTRef = useRef([]);
 
@@ -59,53 +71,65 @@ export function useCheckerApp({ pushToast }) {
     setFiles((current) => ({ ...current, [key]: { ...current[key], ...patch } }));
   }, []);
 
+  /**
+   * Parse satu file log. Di mode Worker, baris mentah tetap tinggal di worker
+   * dan yang kembali hanya jumlah baris.
+   */
+  const parseLog = useCallback(async (kind, file) => {
+    const message = `Gagal membaca File ${kind === "wct" ? "WCT" : "Log Biasa"}.`;
+    try {
+      if (WORKER_SUPPORTED) {
+        const res = await parseLogInWorker(kind, await file.arrayBuffer());
+        if (!res.ok) return { ok: false, message: res.message || message };
+        return { ok: true, rowCount: res.rows };
+      }
+
+      const res = kind === "wct" ? await readLogWCT(file) : await readLogBiasa(file);
+      if (!res.ok) return res;
+      return { ok: true, rowCount: res.rows.length, rows: res.rows };
+    } catch (err) {
+      console.error(err);
+      return { ok: false, message };
+    }
+  }, []);
+
   /* ---------------------------------------------------------------- uploads */
 
-  const handleLogBiasa = useCallback(
-    async (file) => {
+  const loadLog = useCallback(
+    async (key, file) => {
       if (!file) return;
-      setFileState("biasa", {
+      setFileState(key, {
         name: file.name,
         size: file.size,
         lastModified: file.lastModified,
         status: "processing",
         rows: 0,
       });
+      setIsParsing(true);
 
-      const res = await readLogBiasa(file);
-      if (!res.ok) {
-        setFileState("biasa", { status: "error" });
-        pushToast("danger", res.message);
-        return;
+      try {
+        const res = await parseLog(key, file);
+        if (!res.ok) {
+          setFileState(key, { status: "error" });
+          pushToast("danger", res.message);
+          return;
+        }
+
+        if (res.rows) {
+          if (key === "biasa") rawBiasaRef.current = res.rows;
+          else rawWCTRef.current = res.rows;
+        }
+
+        setFileState(key, { status: "ready", rows: res.rowCount });
+      } finally {
+        setIsParsing(false);
       }
-      rawBiasaRef.current = res.rows;
-      setFileState("biasa", { status: "ready", rows: res.rows.length });
     },
-    [pushToast, setFileState]
+    [parseLog, pushToast, setFileState]
   );
 
-  const handleLogWCT = useCallback(
-    async (file) => {
-      if (!file) return;
-      setFileState("wct", {
-        name: file.name,
-        size: file.size,
-        lastModified: file.lastModified,
-        status: "processing",
-        rows: 0,
-      });
-
-      const res = await readLogWCT(file);
-      if (!res.ok) {
-        setFileState("wct", { status: "error" });
-        pushToast("danger", res.message);
-        return;
-      }
-      rawWCTRef.current = res.rows;
-      setFileState("wct", { status: "ready", rows: res.rows.length });
-    },
-    [pushToast, setFileState]
-  );
+  const handleLogBiasa = useCallback((file) => loadLog("biasa", file), [loadLog]);
+  const handleLogWCT = useCallback((file) => loadLog("wct", file), [loadLog]);
 
   const handleSchedule = useCallback(
     async (location, file) => {
@@ -146,6 +170,11 @@ export function useCheckerApp({ pushToast }) {
     if (key === "wct") rawWCTRef.current = [];
     if (key === "jakarta") setScheduleJakarta({});
     if (key === "jogja") setScheduleJogja({});
+
+    // Baris mentah di worker juga dibuang supaya memori langsung kembali.
+    if (WORKER_SUPPORTED && (key === "biasa" || key === "wct")) {
+      clearLogInWorker(key).catch((err) => console.error(err));
+    }
   }, []);
 
   /* --------------------------------------------------------------- workflow */
@@ -168,7 +197,7 @@ export function useCheckerApp({ pushToast }) {
     setIsProcessing(true);
     setProcessStage(PROCESS_STAGES[0]);
 
-    // Visual staging only - the computation itself is unchanged and synchronous.
+    // Visual staging only - the computation itself is unchanged.
     let step = 0;
     const timer = setInterval(() => {
       step += 1;
@@ -178,18 +207,36 @@ export function useCheckerApp({ pushToast }) {
     try {
       await new Promise((resolve) => setTimeout(resolve, 560));
 
-      const result = computeMergedData({
-        rawDataBiasa: rawBiasaRef.current,
-        rawDataWCT: rawWCTRef.current,
-        scheduleJakarta,
-        scheduleJogja,
-        date1,
-        date2,
-      });
+      const result = WORKER_SUPPORTED
+        ? await mergeInWorker({
+            scheduleJakarta,
+            scheduleJogja,
+            date1,
+            date2,
+            // Worker tidak punya localStorage, jadi daftar agent efektif
+            // (termasuk tambahan admin) dikirim eksplisit.
+            overrides: getOverrides(),
+          })
+        : computeMergedData({
+            rawDataBiasa: rawBiasaRef.current,
+            rawDataWCT: rawWCTRef.current,
+            scheduleJakarta,
+            scheduleJogja,
+            date1,
+            date2,
+          });
+
+      if (!result.ok) {
+        pushToast("danger", result.message || "Gagal memproses data.");
+        return;
+      }
 
       setFinalMergedData(result.finalMergedData);
       setHasProcessed(true);
       setCounts({ biasa: result.cBiasaGlobal, wct: result.cWCTGlobal, redis: 0 });
+    } catch (err) {
+      console.error(err);
+      pushToast("danger", "Gagal memproses data.");
     } finally {
       clearInterval(timer);
       setIsProcessing(false);
@@ -245,6 +292,7 @@ export function useCheckerApp({ pushToast }) {
     masterAgentCount: masterCount,
     hasSchedule,
     isProcessing,
+    isParsing,
     processStage,
 
     // actions

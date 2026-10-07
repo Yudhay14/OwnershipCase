@@ -1,6 +1,7 @@
 import { Download, Eye, HelpCircle, Loader2, Shuffle } from "lucide-react";
 import FileField from "./FileField.jsx";
 import DateFilter from "./DateFilter.jsx";
+import { APP_AUTHOR, APP_VERSION, APP_YEAR } from "../config/app.js";
 
 /**
  * Control panel kiri. Urutan field wajib tetap:
@@ -28,6 +29,7 @@ export default function LeftPanel({ app, onOpenHelp }) {
     runExport,
     finalMergedData,
     isProcessing,
+    isParsing,
   } = app;
 
   const canProcess = files.jakarta.status === "ready" || files.jogja.status === "ready";
@@ -104,10 +106,17 @@ export default function LeftPanel({ app, onOpenHelp }) {
 
       {/* Tombol */}
       <div className="space-y-2 border-t border-line px-4 py-3.5">
+        {isParsing ? (
+          <p className="flex items-center gap-1.5 rounded border border-steel-100 bg-steel-50 px-2.5 py-1.5 text-[10.5px] font-medium text-steel-700">
+            <Loader2 size={12} className="animate-spin" />
+            Membaca file, mohon tunggu...
+          </p>
+        ) : null}
+
         <button
           type="button"
           onClick={runProcessing}
-          disabled={!canProcess || isProcessing}
+          disabled={!canProcess || isProcessing || isParsing}
           className={`${BUTTON_BASE} bg-brand-600 text-white hover:bg-brand-700`}
         >
           {isProcessing ? (
@@ -121,7 +130,7 @@ export default function LeftPanel({ app, onOpenHelp }) {
         <button
           type="button"
           onClick={runDistribution}
-          disabled={!hasRows}
+          disabled={!hasRows || isProcessing || isParsing}
           className={`${BUTTON_BASE} bg-amber-500 text-white hover:bg-amber-600`}
         >
           <Shuffle size={14} />
@@ -131,7 +140,7 @@ export default function LeftPanel({ app, onOpenHelp }) {
         <button
           type="button"
           onClick={runExport}
-          disabled={!hasRows}
+          disabled={!hasRows || isProcessing || isParsing}
           className={`${BUTTON_BASE} bg-steel-600 text-white hover:bg-steel-700`}
         >
           <Download size={14} />
@@ -146,6 +155,10 @@ export default function LeftPanel({ app, onOpenHelp }) {
           <HelpCircle size={13} />
           Bantuan
         </button>
+
+        <p className="pt-1 text-center text-[10px] leading-relaxed text-slate-400">
+          &copy; {APP_YEAR} {APP_AUTHOR} &middot; Versi {APP_VERSION}
+        </p>
       </div>
     </aside>
   );

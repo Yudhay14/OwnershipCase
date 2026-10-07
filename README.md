@@ -24,10 +24,18 @@ npm run preview    # serve hasil build
 ## Verifikasi
 
 ```bash
-npm test                         # 28 test: parity (OD + GAPCO) + pipeline + export + agentStore
+npm test                         # 29 test: parity (OD + GAPCO) + pipeline + export + agentStore
 node scripts/make-fixtures.mjs   # generate Excel fixture (OD + GAP CO)
 npm run preview -- --port 4188   # jalankan di terminal lain (pakai port yang bebas)
-node scripts/e2e-smoke.mjs http://localhost:4188/   # 77 check e2e di Chrome asli
+node scripts/e2e-smoke.mjs http://localhost:4188/   # 80 check e2e di Chrome asli
+```
+
+Uji berkas besar (opsional, butuh file WCT puluhan MB):
+
+```bash
+npm run fixture:large            # bikin tests/fixtures/CO_WCT_large.xlsx (~65 MB, 100 ribu baris)
+npm run check:dense              # buktikan parsing mode dense identik dengan mode default
+npm run perf:large -- http://localhost:4188/   # uji UI tetap responsif + hasil tetap benar
 ```
 
 `tests/parity.test.mjs` membandingkan helper hasil port dengan fungsi asli di
@@ -90,7 +98,10 @@ src/
 │   ├── ToastNotification.jsx
 │   └── CountUp.jsx
 ├── config/
-│   └── admin.js             # kredensial gerbang admin (gerbang UI, bukan keamanan)
+│   ├── admin.js             # kredensial gerbang admin (gerbang UI, bukan keamanan)
+│   └── app.js               # nama pemilik, tahun, dan versi aplikasi
+├── workers/
+│   └── checker.worker.js    # parse + gabung log di luar main thread (file besar)
 ├── hooks/
 │   ├── useToasts.js         # tumpukan notifikasi bersama
 │   ├── useAgentStore.js     # binding React untuk daftar agent yang bisa diubah
@@ -101,7 +112,8 @@ src/
 │   ├── agentStore.js        # override tambah/hapus agent (localStorage)
 │   ├── schedule.js          # parsing Absenteeism/Absenteism, eligibility 05-14
 │   ├── processing.js        # computeMergedData, distributeCheckers
-│   ├── readWorkbooks.js     # reader Log Biasa + WCT
+│   ├── readWorkbooks.js     # reader Log Biasa + WCT (mode dense)
+│   ├── checkerWorker.js     # klien Web Worker (postMessage -> Promise)
 │   ├── exportExcel.js       # export Final_Checker_Distribution_Report.xlsx
 │   ├── gapco.js             # validasi GAP CO (port GAPCO_v2.html) + export
 │   └── xlsxFreeze.js        # util freeze header, dipakai kedua export
@@ -180,6 +192,32 @@ Aturan validasi (port apa adanya dari `GAPCO_v2.html`):
 `evaluateRow`, `buildSCIndex`, dan `buildWCTIndex` di `src/utils/gapco.js` diuji parity
 langsung terhadap fungsi yang sama di `GAPCO_v2.html` (`tests/gapco.test.mjs`).
 
+## Berkas besar (WCT 39-50 MB)
+
+File WCT bisa puluhan MB. Dua hal yang dikerjakan supaya aplikasi tidak beku:
+
+1. **Parsing mode `dense`.** SheetJS memakai array internal, bukan objek per sel.
+   Terukur pada file 65 MB / 100 ribu baris: `XLSX.read` turun dari **16,8 s ke 5,7 s**
+   (±3x). Isi barisnya tetap identik - dikunci oleh `npm run check:dense` dan test
+   "mode dense menghasilkan baris identik" di `tests/pipeline.test.mjs`.
+2. **Pindah ke Web Worker.** Parsing dan penggabungan dijalankan di
+   `src/workers/checker.worker.js`, jadi main thread tidak diblokir. Baris mentah
+   tetap tinggal di worker; yang dikirim balik ke UI hanya hasil akhir yang sudah
+   difilter. Worker memakai fungsi yang sama dari `src/utils/*`, tidak ada logika baru.
+
+Hasil uji di Chrome asli dengan file 65 MB (100 ribu baris):
+
+| Ukuran | Tahap | Hasil |
+|---|---|---|
+| Parse WCT | 9,8 s | main thread **tetap responsif** - jeda terpanjang hanya 66 ms |
+| Munculkan Data | 9,1 s | 3.572 case WCT - sama persis dengan hitungan fixture |
+
+Sebelumnya, `XLSX.read` berjalan di main thread sehingga UI beku total selama
+belasan detik tanpa umpan balik apa pun.
+
+Catatan: karena worker tidak punya akses `localStorage`, daftar agent efektif
+(termasuk tambahan admin) dikirim dari main thread setiap kali pemrosesan dijalankan.
+
 ## Excel export
 
 Isi dan urutan kolom tidak berubah. Formatting yang ditambahkan atas permintaan pemilik aplikasi:
@@ -217,3 +255,6 @@ Kartu **"Agent WCT Eligible"** pada versi lama menampilkan `cWCTGlobal` (identik
 - Tidak ada pagination karena versi lama juga tidak memilikinya.
 - Kartu **“Master Agent”** di header mengikuti daftar efektif, jadi angkanya naik/turun
   setelah admin menambah atau menghapus agent.
+- Copyright pemilik dan versi aplikasi tampil di bawah tombol **Bantuan** pada kedua
+  control panel, diambil dari `src/config/app.js` (saat ini “© 2026 Wira Yudha · Versi 3.1”).
+  Untuk menaikkan versi, cukup ubah `APP_VERSION` di file itu.

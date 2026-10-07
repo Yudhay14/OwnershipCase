@@ -115,6 +115,16 @@ export function getOverrides() {
   return overrides;
 }
 
+/**
+ * Menyuntikkan override dari luar. Dipakai Web Worker: worker tidak punya akses
+ * ke localStorage, jadi daftar efektif dikirim dari main thread setiap kali
+ * pemrosesan dijalankan agar hasil di worker sama dengan di main thread.
+ */
+export function setOverrides(next) {
+  overrides = sanitize(next);
+  emit();
+}
+
 /* --------------------------------------------------------------- effective */
 
 function effective(base, list) {

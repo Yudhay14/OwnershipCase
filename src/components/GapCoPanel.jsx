@@ -1,5 +1,6 @@
 import { Download, HelpCircle, Loader2, Play } from "lucide-react";
 import FileField from "./FileField.jsx";
+import { APP_AUTHOR, APP_VERSION, APP_YEAR } from "../config/app.js";
 
 /**
  * Control panel kiri menu GAP CO. Urutan field tetap:
@@ -102,6 +103,10 @@ export default function GapCoPanel({ app, onOpenHelp }) {
           <HelpCircle size={13} />
           Bantuan
         </button>
+
+        <p className="pt-1 text-center text-[10px] leading-relaxed text-slate-400">
+          &copy; {APP_YEAR} {APP_AUTHOR} &middot; Versi {APP_VERSION}
+        </p>
       </div>
     </aside>
   );

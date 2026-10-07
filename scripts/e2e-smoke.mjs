@@ -105,6 +105,11 @@ check(
   railLabels.map((label) => `${label.text}=${label.clipped ? "CLIPPED" : `ok(+${label.slack}px)`}`).join(", ")
 );
 
+check(
+  "footer shows the copyright and app version",
+  await page.getByText(/© 2026 Wira Yudha · Versi 3\.1/).first().isVisible()
+);
+
 /* --------------------------------------------------------- layout kiri/kanan */
 const panelBox = await page.locator("#control-panel").boundingBox();
 const workspaceBox = await page.locator("#workspace").boundingBox();
@@ -367,6 +372,10 @@ check(
 check(
   "Ownership control panel is unmounted while GAP CO is active",
   (await page.locator("#control-panel").count()) === 0
+);
+check(
+  "GAP CO panel shows the copyright and app version",
+  await page.getByText(/© 2026 Wira Yudha · Versi 3\.1/).first().isVisible()
 );
 
 await upload(0, fixture("GapExport.xlsx")); // File GAP Export

@@ -10,6 +10,9 @@
     "preview": "vite preview",
     "test": "node --test tests/",
     "fixtures": "node scripts/make-fixtures.mjs",
+    "fixture:large": "node --max-old-space-size=6144 scripts/make-large-wct.mjs 100000 CO_WCT_large.xlsx 28",
+    "check:dense": "node scripts/check-dense-parity.mjs",
+    "perf:large": "node scripts/perf-large-wct.mjs",
     "e2e": "node scripts/e2e-smoke.mjs"
   },
   "dependencies": {

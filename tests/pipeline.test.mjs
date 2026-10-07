@@ -74,6 +74,23 @@ const wctRows = [
 
 /* ------------------------------------------------------------------ tests */
 
+test("mode dense menghasilkan baris identik dengan mode default", async () => {
+  // File besar diparse dengan { dense: true } (±3x lebih cepat). Test ini mengunci
+  // janji bahwa isinya tetap sama, jadi optimasi itu aman.
+  const file = makeFile(wctRows, "wct.xlsx", { sheetName: "Log." });
+  const buffer = await file.arrayBuffer();
+
+  const normal = XLSX.read(new Uint8Array(buffer), { type: "array" });
+  const dense = XLSX.read(new Uint8Array(buffer), { type: "array", dense: true });
+
+  const sheetOptions = { raw: false, defval: "" };
+  const fromNormal = XLSX.utils.sheet_to_json(normal.Sheets["Log."], sheetOptions);
+  const fromDense = XLSX.utils.sheet_to_json(dense.Sheets["Log."], sheetOptions);
+
+  assert.deepEqual(fromDense, fromNormal);
+  assert.deepEqual(dense.SheetNames, normal.SheetNames);
+});
+
 test("readers load the Log Biasa first sheet and the WCT Log. sheet", async () => {
   const biasa = await readLogBiasa(makeFile(biasaRows, "log-biasa.xlsx"));
   assert.equal(biasa.ok, true);
