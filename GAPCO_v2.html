@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>GAP CO Dashboard | Processor</title>
+<script src="xlsx.full.min.js"></script>
+<style>
+:root{--primary:#2563eb;--bg:#0f172a;--card:#1e293b;--text:#f1f5f9;--muted:#94a3b8;--border:#334155;--success:#22c55e;--warn:#f59e0b;--danger:#ef4444}
+*{box-sizing:border-box}
+body{font-family:'Segoe UI',sans-serif;background:var(--bg);margin:0;padding:20px;color:var(--text)}
+.container{width:98%;max-width:1700px;margin:0 auto;background:var(--card);padding:25px;border-radius:15px;box-shadow:0 10px 25px rgba(0,0,0,.28)}
+h2{color:#f8fafc;border-bottom:2px solid var(--primary);padding-bottom:10px;margin:0 0 25px;font-weight:700}
+.input-group{display:grid;grid-template-columns:220px minmax(280px,1fr) 150px;align-items:center;gap:15px;margin-bottom:15px}
+input[type=file]{display:none}
+.upload-btn{background:var(--primary);color:#fff;padding:10px 18px;border-radius:8px;cursor:pointer;font-weight:600;transition:.2s;display:inline-block;text-align:center}
+.upload-btn:hover{background:#1d4ed8;transform:translateY(-1px)}
+.file-name{color:#cbd5e1;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.status{font-size:.85rem;color:var(--muted)}
+button{padding:12px 24px;cursor:pointer;background:var(--primary);color:#fff;border:none;border-radius:6px;font-weight:600;transition:.2s;margin-right:8px}
+button:hover{background:#1d4ed8;transform:translateY(-1px)}
+button:disabled{background:#475569;color:#94a3b8;cursor:not-allowed;transform:none}
+#progressBox{display:none;margin-top:15px}
+.progress-track{background:#334155;height:20px;border-radius:20px;overflow:hidden}
+#progressBar{width:0;height:100%;background:var(--primary);transition:.25s}
+#progressText{margin-top:8px;color:#cbd5e1}
+#downloadBtn{display:none;background:#059669}
+.summary{display:none;margin-top:25px;margin-bottom:20px;gap:15px;flex-wrap:wrap}
+.sumCard{flex:1;min-width:220px;background:#334155;border-radius:15px;padding:22px;transition:.2s}
+.sumCard:hover{transform:translateY(-3px)}
+.sumTitle{color:#cbd5e1;font-size:.9rem}.sumValue{font-size:32px;font-weight:bold;color:#f8fafc}
+#tableContainer{margin-top:25px;max-height:650px;overflow:auto;border-radius:10px}
+table{width:100%;border-collapse:collapse;font-size:.9rem;min-width:1100px}
+th{position:sticky;top:0;background:#334155;color:#f8fafc;padding:12px;text-align:left;z-index:10;white-space:nowrap}
+td{padding:10px;border-top:1px solid #334155;color:#e2e8f0;vertical-align:top;white-space:nowrap}
+tbody tr{background:#1e293b}tbody tr:hover{background:#334155}
+.doneBadge,.belumBadge,.tidakBadge{display:inline-block;color:#fff;padding:5px 10px;border-radius:20px;font-size:13px;font-weight:bold}
+.doneBadge{background:var(--success)}.belumBadge{background:var(--warn)}.tidakBadge{background:var(--danger)}
+.notice{display:none;margin:15px 0;padding:12px 14px;border-radius:8px;font-size:14px}
+.notice.info{display:block;background:#1e3a8a;color:#dbeafe}.notice.warn{display:block;background:#78350f;color:#fef3c7}
+footer{margin-top:40px;text-align:center;font-size:.8rem;color:#64748b}
+@media(max-width:800px){body{padding:10px}.container{width:100%;padding:15px}.input-group{grid-template-columns:1fr}.upload-btn{width:100%}button{width:100%;margin:5px 0}.sumCard{min-width:100%}}
+</style>
+</head>
+<body>
+<div class="container">
+<h2>GAP CO Data Processor</h2>
+
+<div class="notice info" style="display:block">
+<b>Format GAP baru:</b> gunakan file <b>Final_Checker_Distribution_Report.xlsx</b> hasil export dari Ownership Digital. Data pada file GAP akan ditampilkan apa adanya, lalu sistem menambahkan kolom <b>Result</b> dan <b>Keterangan</b>.
+</div>
+
+<div class="input-group">
+<label for="masterFile" class="upload-btn">📂 Upload GAP Export</label>
+<span id="masterName" class="file-name">Belum ada file dipilih</span>
+<input type="file" id="masterFile" accept=".xlsx,.xls,.csv">
+<span id="statusMaster" class="status">Belum diupload</span>
+</div>
+
+<div class="input-group">
+<label for="scFile" class="upload-btn">📂 Upload SC</label>
+<span id="scName" class="file-name">Belum ada file dipilih</span>
+<input type="file" id="scFile" accept=".xlsx,.xls,.csv">
+<span id="statusSC" class="status">Belum diupload</span>
+</div>
+
+<div class="input-group">
+<label for="wctFile" class="upload-btn">📂 Upload WCT</label>
+<span id="wctName" class="file-name">Belum ada file dipilih</span>
+<input type="file" id="wctFile" accept=".xlsx,.xls,.csv">
+<span id="statusWCT" class="status">Belum diupload</span>
+</div>
+
+<div style="margin-top:20px">
+<button onclick="processData()">Proses Data</button>
+<button id="downloadBtn" onclick="downloadExcel()">Download Excel</button>
+<div id="progressBox">
+<div class="progress-track"><div id="progressBar"></div></div>
+<div id="progressText">0%</div>
+</div>
+</div>
+
+<div id="logicNotice" class="notice warn"></div>
+
+<div id="summaryCards" class="summary">
+<div class="sumCard"><div class="sumTitle">Total GAP</div><div id="totalGap" class="sumValue">0</div></div>
+<div class="sumCard"><div class="sumTitle">Done CO</div><div id="doneCO" class="sumValue" style="color:#22c55e">0</div></div>
+<div class="sumCard"><div class="sumTitle">Belum CO</div><div id="belumCO" class="sumValue" style="color:#f59e0b">0</div></div>
+<div class="sumCard"><div class="sumTitle">CO Tidak Sesuai</div><div id="tidakCO" class="sumValue" style="color:#ef4444">0</div></div>
+</div>
+
+<div id="tableContainer"></div>
+<footer>&copy; 2026 Wira Yudha. All Rights Reserved.</footer>
+</div>
+
+<script>
+let selectedGAP=null, selectedSC=null, selectedWCT=null;
+let finalData=[];
+
+function setFileUI(input, nameId, statusId){
+  const file=input.files[0];
+  document.getElementById(nameId).textContent=file?file.name:'Belum ada file dipilih';
+  const st=document.getElementById(statusId);
+  st.textContent=file?'Terunggah ✅':'Belum diupload';
+  st.style.color=file?'#22c55e':'#94a3b8';
+}
+
+document.getElementById('masterFile').addEventListener('change',e=>{selectedGAP=e.target.files[0]||null;setFileUI(e.target,'masterName','statusMaster')});
+document.getElementById('scFile').addEventListener('change',e=>{selectedSC=e.target.files[0]||null;setFileUI(e.target,'scName','statusSC')});
+document.getElementById('wctFile').addEventListener('change',e=>{selectedWCT=e.target.files[0]||null;setFileUI(e.target,'wctName','statusWCT')});
+
+function updateProgress(percent,text){
+  document.getElementById('progressBox').style.display='block';
+  document.getElementById('progressBar').style.width=percent+'%';
+  document.getElementById('progressText').textContent=text;
+}
+
+async function readFile(file){
+  return new Promise((resolve,reject)=>{
+    const ext=file.name.split('.').pop().toLowerCase();
+    const reader=new FileReader();
+    reader.onload=e=>{
+      try{
+        const workbook=ext==='csv'
+          ? XLSX.read(e.target.result,{type:'binary'})
+          : XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+        resolve(workbook);
+      }catch(err){reject(err)}
+    };
+    reader.onerror=reject;
+    if(ext==='csv') reader.readAsBinaryString(file); else reader.readAsArrayBuffer(file);
+  });
+}
+
+function normalizeHeader(value){return String(value??'').trim().toLowerCase().replace(/\s+/g,' ')}
+function getValue(row,candidates){
+  const keys=Object.keys(row);
+  for(const c of candidates){
+    const target=normalizeHeader(c);
+    const exact=keys.find(k=>normalizeHeader(k)===target);
+    if(exact!==undefined && row[exact]!==undefined && row[exact]!==null && String(row[exact]).trim()!=='') return row[exact];
+  }
+  return '';
+}
+function clean(value){return String(value??'').replace(/->/g,' ').replace(/\s+/g,' ').trim().toLowerCase()}
+function cleanCaseId(value){return String(value??'').trim()}
+
+function buildSCIndex(rows){
+  const index={};
+  rows.forEach(sc=>{
+    const title=String(sc['Title']??'').trim();
+    const match=title.match(/C\d+/i);
+    if(!match)return;
+    const id=match[0];
+    (index[id]??=[]).push(sc);
+  });
+  return index;
+}
+function buildWCTIndex(rows){
+  const index={};
+  rows.forEach(wct=>{
+    const title=String(wct['Title']??'').trim();
+    const match=title.match(/\d{16}/);
+    if(!match)return;
+    const id=match[0];
+    (index[id]??=[]).push(wct);
+  });
+  return index;
+}
+
+function evaluateRow(row,scIndex,wctIndex){
+  const id=cleanCaseId(getValue(row,['CASE_ID','Case ID','Case Code']));
+  const kategori=String(getValue(row,['KATEGORI DATA','Kategori','CATEGORY'])).trim().toUpperCase();
+  const reasonRaw=getValue(row,['REASON ID','Reason ID','REASON','Reason']);
+  const reason=clean(reasonRaw);
+
+  // Preserve the old validation when a legacy REASON ID column is still present.
+  if(kategori==='BIASA' || (kategori==='' && id.startsWith('C'))){
+    const matches=scIndex[id];
+    if(!matches) return {Result:'Belum CO',Keterangan:'Case ID tidak ditemukan'};
+    let found=false, reasonMatch=false;
+    for(const match of matches){
+      const reasonSC=clean(`${match['Reason 1']||''} ${match['Reason 2']||''} ${match['Reason 3']||''}`);
+      const direction=String(match['Direction']||'').trim();
+      if(reason){
+        if(reasonSC===reason){
+          reasonMatch=true;
+          if(direction==='Outbound'){found=true;break;}
+        }
+      }else if(direction==='Outbound'){
+        found=true;break;
+      }
+    }
+    if(found)return {Result:'Done CO',Keterangan:'OK'};
+    if(reason){
+      return {Result:'CO Tidak Sesuai',Keterangan:reasonMatch?'Direction bukan Outbound':'Reason ID berbeda'};
+    }
+    return {Result:'CO Tidak Sesuai',Keterangan:'Direction bukan Outbound'};
+  }
+
+  // WCT branch. The new Ownership export has no REASON ID, so validate using the
+  // WCT case match and Interaction Ticket status. If a legacy REASON ID exists,
+  // retain the original reason comparison as well.
+  if(kategori==='WCT' || (kategori==='' && /^\d{15,}$/.test(id))){
+    const matches=wctIndex[id];
+    if(!matches)return {Result:'Belum CO',Keterangan:'Case ID tidak ditemukan'};
+    let found=false,reasonMatch=false;
+    for(const match of matches){
+      const reasonWCT=clean(match['Case Service Type']);
+      const caseType=String(match['Case Type']||'').trim();
+      if(reason){
+        if(reasonWCT===reason){
+          reasonMatch=true;
+          if(caseType==='Interaction Ticket'){found=true;break;}
+        }
+      }else if(caseType==='Interaction Ticket'){
+        found=true;break;
+      }
+    }
+    if(found)return {Result:'Done CO',Keterangan:'OK'};
+    if(reason)return {Result:'CO Tidak Sesuai',Keterangan:reasonMatch?'Case Type bukan Interaction Ticket':'Reason ID berbeda'};
+    return {Result:'CO Tidak Sesuai',Keterangan:'Case Type bukan Interaction Ticket'};
+  }
+
+  // Fallback for unexpected/legacy rows.
+  if(id.startsWith('C')) return {Result:'Belum CO',Keterangan:'Case ID tidak ditemukan'};
+  if(/^\d{15,}$/.test(id)) return {Result:'Belum CO',Keterangan:'Case ID tidak ditemukan'};
+  return {Result:'Belum CO',Keterangan:'Format Case ID tidak dikenali'};
+}
+
+function escapeHtml(v){return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;')}
+function badge(status){
+  if(status==='Done CO')return '<span class="doneBadge">Done CO</span>';
+  if(status==='Belum CO')return '<span class="belumBadge">Belum CO</span>';
+  return '<span class="tidakBadge">CO Tidak Sesuai</span>';
+}
+
+async function processData(){
+  if(!selectedGAP)return alert('Upload file GAP Export terlebih dahulu!');
+  if(!selectedSC && !selectedWCT)return alert('Upload minimal SC atau WCT!');
+
+  try{
+    updateProgress(5,'📂 Membaca file GAP Export...');
+    const wbG=await readFile(selectedGAP);
+    const gapSheet=wbG.Sheets[wbG.SheetNames[0]];
+    if(!gapSheet)throw new Error('Sheet GAP tidak ditemukan');
+    const dG=XLSX.utils.sheet_to_json(gapSheet,{raw:false,defval:''});
+
+    let dS=[],dW=[];
+    if(selectedSC){updateProgress(20,'📂 Membaca file SC...');const wbS=await readFile(selectedSC);dS=XLSX.utils.sheet_to_json(wbS.Sheets[wbS.SheetNames[0]],{raw:false,defval:''});}
+    if(selectedWCT){updateProgress(35,'📂 Membaca file WCT...');const wbW=await readFile(selectedWCT);dW=XLSX.utils.sheet_to_json(wbW.Sheets[wbW.SheetNames[0]],{raw:false,defval:''});}
+
+    updateProgress(55,'📑 Membuat index SC & WCT...');
+    const scIndex=buildSCIndex(dS),wctIndex=buildWCTIndex(dW);
+    updateProgress(70,'🔍 Mencocokkan data GAP...');
+
+    finalData=[];
+    for(let i=0;i<dG.length;i++){
+      const row=dG[i];
+      const result=evaluateRow(row,scIndex,wctIndex);
+      finalData.push({...row,...result});
+      if(i%100===0 || i===dG.length-1){updateProgress(70+Math.round((i+1)/Math.max(dG.length,1)*25),`🔍 Mencocokkan data ${i+1}/${dG.length}...`);await new Promise(r=>setTimeout(r,0));}
+    }
+
+    renderTable(finalData);
+    document.getElementById('downloadBtn').style.display='inline-block';
+    document.getElementById('summaryCards').style.display='flex';
+    document.getElementById('totalGap').textContent=finalData.length;
+    document.getElementById('doneCO').textContent=finalData.filter(x=>x.Result==='Done CO').length;
+    document.getElementById('belumCO').textContent=finalData.filter(x=>x.Result==='Belum CO').length;
+    document.getElementById('tidakCO').textContent=finalData.filter(x=>x.Result==='CO Tidak Sesuai').length;
+
+    const hasNewFormat=!dG.length || ('KATEGORI DATA' in dG[0]) || ('CASE_ID' in dG[0]);
+    const note=document.getElementById('logicNotice');
+    if(hasNewFormat){
+      note.style.display='block';
+      note.textContent='Catatan: file export Ownership Digital tidak memiliki kolom REASON ID. Untuk format baru, validasi CO menggunakan keberadaan Case ID dan Direction (BIASA) / Case Type Interaction Ticket (WCT). Jika file GAP memiliki REASON ID, validasi lama tetap digunakan.';
+    } else note.style.display='none';
+
+    updateProgress(100,`🎉 Selesai - ${finalData.length} data berhasil diproses`);
+    window.finalData=finalData;
+  }catch(err){
+    console.error(err);
+    alert('Gagal memproses data. Pastikan format file sesuai.');
+  }
+}
+
+function renderTable(rows){
+  if(!rows.length){document.getElementById('tableContainer').innerHTML='<div class="notice warn" style="display:block">Tidak ada data GAP yang terbaca.</div>';return}
+  const baseHeaders=Object.keys(rows[0]).filter(h=>h!=='Result'&&h!=='Keterangan');
+  let html='<table><thead><tr>'+baseHeaders.map(h=>`<th>${escapeHtml(h)}</th>`).join('')+'<th>Result</th><th>Keterangan</th></tr></thead><tbody>';
+  rows.forEach(r=>{
+    html+='<tr>'+baseHeaders.map(h=>`<td>${escapeHtml(r[h])}</td>`).join('')+`<td>${badge(r.Result)}</td><td>${escapeHtml(r.Keterangan)}</td></tr>`;
+  });
+  html+='</tbody></table>';
+  document.getElementById('tableContainer').innerHTML=html;
+}
+
+function downloadExcel(){
+  if(!window.finalData||!window.finalData.length)return;
+  const ws=XLSX.utils.json_to_sheet(window.finalData);
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Hasil');
+  XLSX.writeFile(wb,'Hasil_Proses_GAP_CO.xlsx');
+}
+</script>
+</body>
+</html>

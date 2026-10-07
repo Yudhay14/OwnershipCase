@@ -1,0 +1,1772 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ownership Digital - Checker Distribution</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,sans-serif;background:#f0f2f5;color:#333;display:flex;height:100vh;overflow:hidden}
+.sidebar{width:350px;background:#fff;border-right:1px solid #e0e0e0;display:flex;flex-direction:column;box-shadow:2px 0 10px rgba(0,0,0,.05);z-index:10;height:100%}
+.sidebar-header{padding:20px;background:#107c41;color:#fff}
+.sidebar-header h1{font-size:18px;font-weight:700;margin-bottom:4px}
+.sidebar-header p{font-size:11px;opacity:.88;line-height:1.4}
+.sidebar-content{padding:18px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:14px}
+.control-group{background:#f8f9fa;padding:13px;border-radius:8px;border:1px solid #eaeded}
+.control-group h5{font-size:12px;color:#107c41;font-weight:700;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px}
+.form-control{width:100%;padding:9px 11px;border:1px solid #ccc;border-radius:6px;font-size:12px;margin-bottom:4px;background:#fff}
+.file-status{font-size:11px;color:#28a745;margin-top:4px;font-weight:600;display:none}
+.file-status.show{display:block}
+.date-group{display:flex;gap:8px}.date-sub{flex:1}.date-sub label{display:block;font-size:10px;color:#666;margin-bottom:2px}
+.action-group{display:flex;flex-direction:column;gap:8px;margin-top:auto;padding-top:10px;border-top:1px dashed #ddd}
+.btn{width:100%;padding:11px;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:.4px;transition:.2s}
+.btn-primary{background:#107c41;color:#fff}.btn-primary:hover{background:#0b592e}
+.btn-warning{background:#ff9800;color:#fff}.btn-warning:hover{background:#e68a00}
+.btn-success{background:#2b579a;color:#fff}.btn-success:hover{background:#1e3d6b}
+.btn:disabled{background:#e0e0e0!important;color:#a0a0a0!important;cursor:not-allowed}
+.schedule-note{font-size:10px;color:#666;line-height:1.45;margin-top:5px}
+.main-content{flex:1;display:flex;flex-direction:column;overflow:hidden;height:100%}
+.top-navbar{background:#fff;padding:15px 30px;border-bottom:1px solid #e0e0e0;display:flex;justify-content:space-between;align-items:center}
+.top-navbar .title{font-size:16px;font-weight:600;color:#444}
+.dashboard-body{flex:1;padding:22px 30px;overflow-y:auto;display:flex;flex-direction:column;gap:18px}
+.alert{padding:12px 18px;border-radius:6px;font-size:13px;border-left:5px solid transparent;display:none}
+.alert-success{background:#d4edda;color:#155724;border-color:#c3e6cb;border-left-color:#28a745}
+.alert-warning{background:#fff3cd;color:#856404;border-color:#ffeeba;border-left-color:#ffc107}
+.alert-danger{background:#f8d7da;color:#721c24;border-color:#f5c6cb;border-left-color:#dc3545}
+.summary-container{display:grid;grid-template-columns:repeat(4,1fr);gap:15px}
+.summary-card{background:#fff;padding:16px 20px;border-radius:10px;box-shadow:0 2px 6px rgba(0,0,0,.03);border-top:4px solid #107c41}
+.summary-card.wct{border-top-color:#2b579a}.summary-card.redis{border-top-color:#ff9800;background:#fffbf2}.summary-card.unmapped{border-top-color:#d32f2f;background:#fff8f8}
+.summary-title{font-size:10px;color:#777;font-weight:700;text-transform:uppercase;margin-bottom:5px;letter-spacing:.4px}
+.summary-value{font-size:28px;color:#222;font-weight:700}
+.table-container{background:#fff;border-radius:10px;box-shadow:0 2px 6px rgba(0,0,0,.03);flex:1;display:flex;flex-direction:column;overflow:hidden;border:1px solid #e0e0e0;min-height:350px}
+.table-responsive{flex:1;overflow:auto}
+table{width:100%;border-collapse:collapse;text-align:left;font-size:12px;min-width:1250px}
+th{background:#f4f6f8;color:#555;padding:11px 13px;font-weight:600;position:sticky;top:0;z-index:5;border-bottom:2px solid #e0e0e0;font-size:10px;text-transform:uppercase;letter-spacing:.45px;white-space:nowrap}
+td{padding:10px 13px;border-bottom:1px solid #eee;color:#444;vertical-align:middle;white-space:nowrap}
+tr:hover{background:#fcfdfe}
+.badge-type{font-weight:700;padding:3px 8px;border-radius:4px;font-size:9px;text-transform:uppercase;display:inline-block}
+.type-biasa{background:#e1f5fe;color:#0288d1;border:1px solid #b3e5fc}
+.type-wct{background:#e8eaf6;color:#3f51b5;border:1px solid #c5cae9}
+.badge-schedule{background:#e8f5e9;color:#2e7d32;font-weight:700;padding:3px 8px;border-radius:4px;border:1px solid #c8e6c9;font-size:10px}
+.badge-ineligible{background:#f8d7da;color:#721c24;border:1px solid #f5c6cb;font-weight:700;padding:3px 8px;border-radius:4px;font-size:10px}
+.badge-unknown{background:#fff3cd;color:#856404;border:1px solid #ffeeba;font-weight:700;padding:3px 8px;border-radius:4px;font-size:10px}
+.checker-text{font-weight:700;color:#2e7d32;background:#e8f5e9;padding:4px 9px;border-radius:4px;border:1px solid #c8e6c9;display:inline-block}
+.checker-redis{font-weight:700;color:#1565c0;background:#e3f2fd;padding:4px 9px;border-radius:4px;border:1px solid #bbdefb;display:inline-block}
+.creator-text{font-weight:600;color:#444}
+.empty-state{padding:35px;text-align:center;color:#888;font-size:13px}
+.legend{font-size:10px;color:#666;line-height:1.5}
+@media(max-width:1100px){.sidebar{width:310px}.summary-container{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="sidebar-header">
+    <h1>Ownership Digital</h1>
+    <p>Creator Ownership & Checker Distribution System</p>
+  </div>
+
+  <div class="sidebar-content">
+    <div class="control-group">
+      <h5>1. File Log Biasa</h5>
+      <input type="file" id="fileBiasa" class="form-control" accept=".xlsx,.xls">
+      <div id="statusBiasa" class="file-status">✓ Log Biasa Loaded</div>
+    </div>
+
+    <div class="control-group">
+      <h5>2. File CO WCT (Log.)</h5>
+      <input type="file" id="fileWCT" class="form-control" accept=".xlsx,.xls">
+      <div id="statusWCT" class="file-status">✓ Log WCT Loaded</div>
+    </div>
+
+    <div class="control-group">
+      <h5>3. File Schedule Jakarta</h5>
+      <input type="file" id="fileScheduleJakarta" class="form-control" accept=".xlsx,.xls">
+      <div id="statusScheduleJakarta" class="file-status">✓ Schedule Jakarta Loaded</div>
+      <div class="schedule-note">Sheet: <b>Absenteeism</b> · Agent Name: <b>kolom B</b> · Schedule WFM: <b>kolom E</b></div>
+    </div>
+
+    <div class="control-group">
+      <h5>4. File Schedule Jogja</h5>
+      <input type="file" id="fileScheduleJogja" class="form-control" accept=".xlsx,.xls">
+      <div id="statusScheduleJogja" class="file-status">✓ Schedule Jogja Loaded</div>
+      <div class="schedule-note">Sheet: <b>Absenteism</b> · Agent Name: <b>kolom B</b> · Schedule WFM: <b>kolom F</b></div>
+    </div>
+
+    <div class="control-group">
+      <h5>5. Filter Tanggal Log</h5>
+      <div class="date-group">
+        <div class="date-sub"><label>Utama *</label><input type="date" id="date1" class="form-control"></div>
+        <div class="date-sub"><label>Kedua</label><input type="date" id="date2" class="form-control"></div>
+      </div>
+      <div class="legend">Checker hanya dibagikan ke agent dengan schedule mulai jam 05 sampai 14.</div>
+    </div>
+
+    <div class="action-group">
+      <button onclick="prosesSemuaData()" class="btn btn-primary">1. Munculkan Data</button>
+      <button onclick="bagiCheckerOtomatis()" id="btnBagiChecker" class="btn btn-warning" disabled>2. Bagi Checker</button>
+      <button onclick="exportExcelCombined()" id="btnExport" class="btn btn-success" disabled>3. Export Excel</button>
+    </div>
+  </div>
+</div>
+
+<div class="main-content">
+  <div class="top-navbar">
+    <div class="title">Merged Ownership Data & Checker Distribution</div>
+    <div id="infoHariIni" style="font-size:12px;color:#666;text-align:right;line-height:1.4"></div>
+  </div>
+
+  <div class="dashboard-body">
+    <div id="notification" class="alert"></div>
+
+    <div id="resultContainer" style="display:none;flex-direction:column;gap:18px;flex:1;overflow:hidden">
+      <div class="summary-container">
+        <div class="summary-card">
+          <div class="summary-title">Total Case Biasa</div>
+          <div class="summary-value" id="countBiasa">0</div>
+        </div>
+        <div class="summary-card wct">
+          <div class="summary-title">Total Case WCT</div>
+          <div class="summary-value" id="countWCT">0</div>
+        </div>
+        <div class="summary-card redis">
+          <div class="summary-title">Case Redistribusi</div>
+          <div class="summary-value" id="countRedis">0</div>
+        </div>
+        <div class="summary-card unmapped">
+          <div class="summary-title">Agent WCT Eligible</div>
+          <div class="summary-value" id="countUnmapped">0</div>
+        </div>
+      </div>
+
+      <div class="table-container">
+        <div class="table-responsive">
+          <table id="tableData">
+            <thead>
+              <tr>
+                <th style="width:45px">No</th>
+                <th>Kategori</th>
+                <th>Case ID</th>
+                <th>Create Date</th>
+                <th>Creator</th>
+                <th>Schedule</th>
+                <th>Log In ID</th>
+                <th>MSISDN</th>
+                <th>ID 1</th>
+                <th>Checker</th>
+              </tr>
+            </thead>
+            <tbody id="tableBody">
+              <tr><td colspan="10" class="empty-state">Belum ada data. Upload file lalu klik "Munculkan Data".</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+if (window.self === window.top) {
+  // Tetap izinkan standalone untuk versi project baru.
+}
+
+const agentMaster = [
+  {
+    "name": "Muhamad Furqan Annas",
+    "ldap": "VADS.MFURQANANNAS"
+  },
+  {
+    "name": "Yulia Prihatini",
+    "ldap": "VADS.YULI1524"
+  },
+  {
+    "name": "Arpin",
+    "ldap": "VADS.Arpin1534"
+  },
+  {
+    "name": "Selfin Rahmansyah",
+    "ldap": "VADS.SELFINR"
+  },
+  {
+    "name": "Ennita Batubara",
+    "ldap": "VADS.EBATUBA"
+  },
+  {
+    "name": "Muhammad Ikhsan Rifai",
+    "ldap": "VADS.MIKHSAN"
+  },
+  {
+    "name": "Gilang Ramadhan",
+    "ldap": "VADS.GRAMADH"
+  },
+  {
+    "name": "Suci Apriyanti",
+    "ldap": "VADS.SUCIA"
+  },
+  {
+    "name": "Ameli Elita Tondok",
+    "ldap": "VADS.AMELIE"
+  },
+  {
+    "name": "Tiur Fransiska",
+    "ldap": "VADS.TIURF"
+  },
+  {
+    "name": "Ari Pratama Mukti",
+    "ldap": "VADS.ARIP"
+  },
+  {
+    "name": "Ayang Maulana",
+    "ldap": "VADS.AYANGM"
+  },
+  {
+    "name": "Dwi Andini Sukma Wijaya",
+    "ldap": "VADS.DWIANDIN"
+  },
+  {
+    "name": "Dwi Retno Syahfitri Harahap",
+    "ldap": "VADS.DWIRETNO"
+  },
+  {
+    "name": "Afdhi Ridho Sehyudin",
+    "ldap": "vads.Afdhi1509"
+  },
+  {
+    "name": "Niken Arieska",
+    "ldap": "VADS.NARIESK"
+  },
+  {
+    "name": "Ronal Abdi",
+    "ldap": "VADS.RONALA"
+  },
+  {
+    "name": "Prihatin Tri Nur Cahyaningrum",
+    "ldap": "VADS.PRIHATI"
+  },
+  {
+    "name": "Rifaldy Rios Wanadri",
+    "ldap": "VADS.RIFALDYR"
+  },
+  {
+    "name": "Savina Salsabila",
+    "ldap": "VADS.SAVINAS"
+  },
+  {
+    "name": "Puji Yasnil Intan Septama",
+    "ldap": "VADS.PUJIY"
+  },
+  {
+    "name": "Rafly Faturochman",
+    "ldap": "VADS.RAFLYF"
+  },
+  {
+    "name": "Reny Sharfina",
+    "ldap": "VADS.RSHARFI"
+  },
+  {
+    "name": "Hafifah Nurul Hidayani",
+    "ldap": "VADS.HNURUL"
+  },
+  {
+    "name": "Nanda Tri Septianto",
+    "ldap": "VADS.NANDAT"
+  },
+  {
+    "name": "Jupra Freddi Marbun",
+    "ldap": "VADS.JUPRAF"
+  },
+  {
+    "name": "Nuzulia Dwi Widowati",
+    "ldap": "VADS.NUZULIA"
+  },
+  {
+    "name": "Lukmanul Hakim",
+    "ldap": "VADS.LUKMANU"
+  },
+  {
+    "name": "Ananta Dona Arsya",
+    "ldap": "VADS.ANANTAD"
+  },
+  {
+    "name": "Ajiah Nurul Aeny",
+    "ldap": "VADS.AJIAHN"
+  },
+  {
+    "name": "Gladis Mar'Atus Soleha",
+    "ldap": "VADS.GLADISM"
+  },
+  {
+    "name": "Umi Ngazi Zatul Mauludiyah",
+    "ldap": "VADS.UMIN"
+  },
+  {
+    "name": "Restiani Meidy",
+    "ldap": "VADS.RESTIANIM"
+  },
+  {
+    "name": "Rifa Zakia",
+    "ldap": "VADS.RIFAZ"
+  },
+  {
+    "name": "Rizky Amelia Adrianty",
+    "ldap": "VADS.RIZKYAMEL"
+  },
+  {
+    "name": "Shofi Chairulloh",
+    "ldap": "VADS.SHOFIC"
+  },
+  {
+    "name": "Sanidah",
+    "ldap": "VADS.Sanidah1528"
+  },
+  {
+    "name": "Daffa Andarifka Syaifullah",
+    "ldap": "VADS.DAFFAA"
+  },
+  {
+    "name": "Fildzah Haifah Mukhtar",
+    "ldap": "VADS.FILDZAHH"
+  },
+  {
+    "name": "Fitri Nur Azra",
+    "ldap": "VADS.FITRIN"
+  },
+  {
+    "name": "Hajar Fatriani",
+    "ldap": "VADS.HAJARF"
+  },
+  {
+    "name": "Novia Rahmadini",
+    "ldap": "VADS.NOVIARAH"
+  },
+  {
+    "name": "Annisa Oktaviani",
+    "ldap": "VADS.ANNISAO"
+  },
+  {
+    "name": "Siti Nur Handayani",
+    "ldap": "VADS.SNUR"
+  },
+  {
+    "name": "Habileo Khomeini Nasro",
+    "ldap": "VADS.HABILEO"
+  },
+  {
+    "name": "Suryani",
+    "ldap": "VADS.SURYANI"
+  },
+  {
+    "name": "Adelia Ningsih",
+    "ldap": "VADS.ADELIAN"
+  },
+  {
+    "name": "Mei Tria Putri",
+    "ldap": "VADS.MTRIA"
+  },
+  {
+    "name": "Masayu Rosita",
+    "ldap": "VADS.MROSITA"
+  },
+  {
+    "name": "Fany Rifkoh",
+    "ldap": "VADS.FRIFKOH"
+  },
+  {
+    "name": "Andre Munapinsyah",
+    "ldap": "VADS.ANDREM"
+  },
+  {
+    "name": "Innayahti Sudarsono",
+    "ldap": "VADS.INNAYAHTIS"
+  },
+  {
+    "name": "Ridwan Ramadhan",
+    "ldap": "VADS.RIDWANR"
+  },
+  {
+    "name": "Rifky Azriel Akbar Rahmawan",
+    "ldap": "VADS.RIFKYA"
+  },
+  {
+    "name": "Truly Anissa Gadis Anindra",
+    "ldap": "VADS.TRULYA"
+  },
+  {
+    "name": "Ivan Sabila",
+    "ldap": "VADS.IVANS"
+  },
+  {
+    "name": "Nashrulloh Dhiyaul Hag",
+    "ldap": "VADS.NASHRULLOHD"
+  },
+  {
+    "name": "Prihasti Afaf Fadhilah",
+    "ldap": "VADS.PRIHASTIA"
+  },
+  {
+    "name": "Dian Rhamadan",
+    "ldap": "VADS.DIANR"
+  },
+  {
+    "name": "Tifhalni Afifah Ferdi",
+    "ldap": "VADS.Tifhalni1601"
+  },
+  {
+    "name": "Ferina",
+    "ldap": "VADS.FERINA"
+  },
+  {
+    "name": "Husen",
+    "ldap": "VADS.HUSEN"
+  },
+  {
+    "name": "Ari Mulyasari",
+    "ldap": "VADS.AMULYAS"
+  },
+  {
+    "name": "Aulia Adinda",
+    "ldap": "VADS.AULIAA"
+  },
+  {
+    "name": "Andhika Dwisakti Nugraha",
+    "ldap": "VADS.ADWISAK"
+  },
+  {
+    "name": "Apriliani Rizki Setyaningrum",
+    "ldap": "VADS.APRILIANIR"
+  },
+  {
+    "name": "Ella Febrina Hertin",
+    "ldap": "VADS.ELLAFEB"
+  },
+  {
+    "name": "Fazar Syah Putra",
+    "ldap": "VADS.FAZARS"
+  },
+  {
+    "name": "Riko Jarot Dwi Wacono",
+    "ldap": "VADS.RIKOJ"
+  },
+  {
+    "name": "Zulfa Aqilah Yusfaiza",
+    "ldap": "VADS.ZULFAA"
+  },
+  {
+    "name": "Indira Maharani Putri",
+    "ldap": "VADS.INDIRAM"
+  },
+  {
+    "name": "Kurnia Candra Winaryanti",
+    "ldap": "VADS.KURNIAC"
+  },
+  {
+    "name": "Ervina Firsya Amalia",
+    "ldap": "VADS.ERVINAF"
+  },
+  {
+    "name": "Aisyah Dwi Rejeki",
+    "ldap": "VADS.AISYAHD"
+  },
+  {
+    "name": "Hikmal Fikri Kurniawan",
+    "ldap": "VADS.HIKMALF"
+  },
+  {
+    "name": "Dina Oktaviana",
+    "ldap": "VADS.DINAO"
+  },
+  {
+    "name": "Astuti",
+    "ldap": "VADS.ASTUTIA"
+  },
+  {
+    "name": "Putri Pratiwi",
+    "ldap": "VADS.PUTRIP"
+  },
+  {
+    "name": "Amanda Three Julyana Kartyka",
+    "ldap": "VADS.AMANDAT"
+  },
+  {
+    "name": "I Gusti Ngurah Karel Raghuprama",
+    "ldap": "VADS.IGUSTIN"
+  },
+  {
+    "name": "Aulia Freza Fitriani",
+    "ldap": "VADS.AFREZA"
+  },
+  {
+    "name": "Citra Erzi Widyasari",
+    "ldap": "VADS.CITRAE"
+  },
+  {
+    "name": "Reza Kurniawan",
+    "ldap": "VADS.REZAK"
+  },
+  {
+    "name": "Mayang Sari",
+    "ldap": "VADS.MAYANGS"
+  },
+  {
+    "name": "Ariyan Sunjaya",
+    "ldap": "VADS.ARIYANS"
+  },
+  {
+    "name": "Nisfi Nuril Sahidah",
+    "ldap": "VADS.NISFIN"
+  },
+  {
+    "name": "Yuni Lutfi Yani",
+    "ldap": "VADS.YUNIL"
+  },
+  {
+    "name": "Rifqi Khamdani",
+    "ldap": "VADS.RIFQIK"
+  },
+  {
+    "name": "Desfina Citra Puspita",
+    "ldap": "VADS.DESFINAC"
+  },
+  {
+    "name": "Lisa Kartika",
+    "ldap": "VADS.LISAK"
+  },
+  {
+    "name": "Nurani Nurul Karomah",
+    "ldap": "VADS.NURANIN"
+  },
+  {
+    "name": "Syarifah Nurasyiqin",
+    "ldap": "VADS.SYARIFAHN"
+  },
+  {
+    "name": "Annida Vivy Khanifa",
+    "ldap": "VADS.ANNIDAV"
+  },
+  {
+    "name": "Intan Amalia",
+    "ldap": "VADS.INTANAMAL"
+  },
+  {
+    "name": "Nur Aisiyah Mulyati",
+    "ldap": "VADS.NURAI"
+  },
+  {
+    "name": "Syifa Khairunnisa",
+    "ldap": "VADS.SYIFAK"
+  },
+  {
+    "name": "Yuditiya Putra Setio Aji",
+    "ldap": "VADS.YUDITIYAP"
+  },
+  {
+    "name": "Adepriyani Rahma Putri",
+    "ldap": "VADS.ADEPRIYANIR"
+  },
+  {
+    "name": "Diah Wulandari",
+    "ldap": "VADS.DIAHW"
+  },
+  {
+    "name": "Najwa Syifa Salsabilla Ichsania",
+    "ldap": "VADS.NAJWAS"
+  },
+  {
+    "name": "Windy hapsari",
+    "ldap": "VADS.WINDYH"
+  },
+  {
+    "name": "Puji Kurniasari",
+    "ldap": "VADS.PUJIK"
+  },
+  {
+    "name": "Sidiq Arief Rivai",
+    "ldap": "VADS.SIDIQA"
+  },
+  {
+    "name": "Melly Nur Hasanah",
+    "ldap": "VADS.MELLYN"
+  },
+  {
+    "name": "Marfungatun",
+    "ldap": "VADS.MMARFUN"
+  },
+  {
+    "name": "Noni Siti Nopela",
+    "ldap": "VADS.NONIS"
+  },
+  {
+    "name": "Brusel Marlon Timisela",
+    "ldap": "VADS.BRUSELM"
+  },
+  {
+    "name": "Raihan Fadhil Hamid",
+    "ldap": "VADS.RAIHANF"
+  },
+  {
+    "name": "Isnaina Widhia Azizah",
+    "ldap": "VADS.ISNAINA"
+  },
+  {
+    "name": "Aloysius Gonzaga Juan Pradipta",
+    "ldap": "VADS.ALOYSIU"
+  },
+  {
+    "name": "Ibrahim Suryo Wibowo",
+    "ldap": "VADS.IBRAHIM"
+  },
+  {
+    "name": "Muhammad Meidaffi Jibran",
+    "ldap": "VADS.MMEIDAF"
+  },
+  {
+    "name": "Nurul Fazria Lubis",
+    "ldap": "VADS.NFAZRIA"
+  },
+  {
+    "name": "Sindy Aulia Rochim",
+    "ldap": "VADS.SINDYA"
+  },
+  {
+    "name": "Hanifah Sa'diyyah",
+    "ldap": "VADS.HSA'DIY"
+  },
+  {
+    "name": "Rifa Rista Nazira",
+    "ldap": "VADS.RIFAR"
+  },
+  {
+    "name": "Alifah Sefani",
+    "ldap": "VADS.ALIFAHS"
+  },
+  {
+    "name": "Fitrianingrum",
+    "ldap": "VADS.FITRIANINGRUMF"
+  },
+  {
+    "name": "Karolus talu roy",
+    "ldap": "VADS.KAROLUST"
+  },
+  {
+    "name": "Mutiara Aulia Rachmawati",
+    "ldap": "VADS.MUTIARAA"
+  },
+  {
+    "name": "Oeriza Sandey Hardika",
+    "ldap": "VADS.OERIZAS"
+  },
+  {
+    "name": "Ningtiya Oktaviyani",
+    "ldap": "VADS.NINGTIYAO"
+  },
+  {
+    "name": "Panji Atmojo",
+    "ldap": "VADS.PANJIA"
+  },
+  {
+    "name": "Tomy Kuncoro Edi",
+    "ldap": "VADS.TOMYK"
+  },
+  {
+    "name": "Alifa Laila Nisa",
+    "ldap": "VADS.ALIFAL"
+  },
+  {
+    "name": "Dwina Asiawati",
+    "ldap": "VADS.DWINAA"
+  },
+  {
+    "name": "Luluk Saiful Janah",
+    "ldap": "VADS.LULUKS"
+  },
+  {
+    "name": "Nasifa Marisa Bela",
+    "ldap": "VADS.NASIFAM"
+  },
+  {
+    "name": "Sintiya Oktavia Salsabila",
+    "ldap": "VADS.SINTIYAO"
+  },
+  {
+    "name": "M Alvan Setia Rahman",
+    "ldap": "VADS.MALVANS"
+  },
+  {
+    "name": "Syfana Hang Yang Lesi Alfioli",
+    "ldap": "VADS.SYFANAH"
+  },
+  {
+    "name": "Kevin Bonar Giarha Siagian",
+    "ldap": "VADS.KEVINB"
+  },
+  {
+    "name": "SOFIATUN NURHIDAYAH",
+    "ldap": "VADS.SOFIATU"
+  },
+  {
+    "name": "Purwanita Ayuning Pakarti",
+    "ldap": "VADS.PURWANI"
+  },
+  {
+    "name": "Putri Sri Aminah",
+    "ldap": "VADS.PSR"
+  },
+  {
+    "name": "Felisya Syarifa Khanza Nida",
+    "ldap": "VADS.FELISYA"
+  },
+  {
+    "name": "Noufal rizal",
+    "ldap": "VADS.NOUFALR"
+  },
+  {
+    "name": "Agustin Choiriatunisa",
+    "ldap": "VADS.ACHOIRI"
+  },
+  {
+    "name": "Ananda Dito Pramudya Putra",
+    "ldap": "VADS.ADITO"
+  },
+  {
+    "name": "Fiunike Paburru",
+    "ldap": "VADS.FIUNIKE"
+  },
+  {
+    "name": "Joanna Arivenda Irmandel",
+    "ldap": "VADS.JOANNAA"
+  },
+  {
+    "name": "Puput Yuli Rahayu",
+    "ldap": "VADS.PUPUTY"
+  },
+  {
+    "name": "Rayi Anissai Rahma Puti Zahro",
+    "ldap": "VADS.RAYIA"
+  },
+  {
+    "name": "Yazid Farisy",
+    "ldap": "VADS.YAZIDF"
+  },
+  {
+    "name": "Nabilah Umar Seff",
+    "ldap": "VADS.NUMAR"
+  },
+  {
+    "name": "Arimbi Rahma Ningrum",
+    "ldap": "VADS.ARIMBIR"
+  },
+  {
+    "name": "Leonyta Lusiantoro",
+    "ldap": "VADS.LEONYTAL"
+  },
+  {
+    "name": "Sinta Safitri",
+    "ldap": "VADS.SINTAS"
+  },
+  {
+    "name": "Ade Putri Pramudyawardhani",
+    "ldap": "VADS.ADEPUT"
+  },
+  {
+    "name": "Annisa Herawati",
+    "ldap": "VADS.ANNISAH"
+  },
+  {
+    "name": "Hanun Muthi'ah Saharani",
+    "ldap": "VADS.HANUNM"
+  },
+  {
+    "name": "Mutiara Anisa",
+    "ldap": "VADS.MUTIARAAN"
+  },
+  {
+    "name": "Retno Handayani",
+    "ldap": "VADS.RETNOH"
+  },
+  {
+    "name": "Talitha Sahda Widyadhari",
+    "ldap": "VADS.TALITHAS"
+  },
+  {
+    "name": "Ari Triani",
+    "ldap": "VADS.ARIT"
+  },
+  {
+    "name": "Lianawati",
+    "ldap": "VADS.LIANAWATIL"
+  },
+  {
+    "name": "Refica Yulianti",
+    "ldap": "VADS.REFICAY"
+  },
+  {
+    "name": "Ninung Kumalasari",
+    "ldap": "VADS.NINUNGK"
+  },
+  {
+    "name": "Rita Puspaningrum",
+    "ldap": "VADS.RITAVADS1511"
+  },
+  {
+    "name": "Amelinda Ivana Ramadhani",
+    "ldap": "VADS.AMELVADS1515"
+  },
+  {
+    "name": "Siti Afiyana Damayanti",
+    "ldap": "VADS.SAFIYAN"
+  },
+  {
+    "name": "Angela Olivacea Octa Prinea",
+    "ldap": "VADS.ANGELAO"
+  },
+  {
+    "name": "Dimas Danindro Saputro",
+    "ldap": "VADS.DIMASD"
+  },
+  {
+    "name": "Nibras Rafif Andhika",
+    "ldap": "VADS.NIBRASR"
+  },
+  {
+    "name": "Bagus Surya Adyiatama",
+    "ldap": "VADS.BAGUSS"
+  },
+  {
+    "name": "Ika nurul Ulfatiana",
+    "ldap": "VADS.IKAN"
+  },
+  {
+    "name": "Yogi Miftah Fazri",
+    "ldap": "VADS.YOGIM"
+  },
+  {
+    "name": "Septian Yuli Saraswati",
+    "ldap": "VADS.SEPTIAN"
+  },
+  {
+    "name": "ADITYA PANDU MAULANA",
+    "ldap": "VADS.APANDU"
+  },
+  {
+    "name": "Winda Naufal Hakim",
+    "ldap": "VADS.WNAUFAL"
+  },
+  {
+    "name": "Yuliana Tri Sunarti",
+    "ldap": "VADS.YTRI"
+  },
+  {
+    "name": "Mellenia Puspa Rini",
+    "ldap": "VADS.MELLENI"
+  },
+  {
+    "name": "Anti Uswatun Khasanah",
+    "ldap": "VADS.ANTIU"
+  },
+  {
+    "name": "Nabil Makarim Firsal",
+    "ldap": "VADS.NABILM"
+  },
+  {
+    "name": "Annisa Yuni Noor Indah",
+    "ldap": "VADS.AYUNI"
+  },
+  {
+    "name": "Lois Bagas Ramadhon",
+    "ldap": "VADS.LOISB"
+  },
+  {
+    "name": "Muhammad Ikhsan Irysad",
+    "ldap": "VADS.MUHAMMADI"
+  },
+  {
+    "name": "Kusuma Rahmawati",
+    "ldap": "VADS.KUSUMAR"
+  },
+  {
+    "name": "Riwanti Novi Antika",
+    "ldap": "VADS.RIWANTI"
+  },
+  {
+    "name": "Regita Kisnanda Putri",
+    "ldap": "VADS.REGITAK"
+  },
+  {
+    "name": "Noviana",
+    "ldap": "VADS.NNOVIAN"
+  },
+  {
+    "name": "Adelia Ayu Puspitasari",
+    "ldap": "VADS.ADELIAA"
+  },
+  {
+    "name": "Wahyu Nur Fatimah",
+    "ldap": "VADS.WAHYUN"
+  },
+  {
+    "name": "Atma Fadna Rinaja",
+    "ldap": "VADS.ATMAF"
+  },
+  {
+    "name": "Dian Natama Sandi Rangkuti",
+    "ldap": "VADS.DIANN"
+  },
+  {
+    "name": "Muhammad Anargya Najwa Aradhana",
+    "ldap": "VADS.MANARGY"
+  },
+  {
+    "name": "Gemilang Farhan saputra",
+    "ldap": "VADS.GEMILAN"
+  },
+  {
+    "name": "Mufid Mausul",
+    "ldap": "VADS.MUFIDM"
+  },
+  {
+    "name": "Neneh Larasati",
+    "ldap": "VADS.NENEHL"
+  },
+  {
+    "name": "Rena Destiyana Segarani",
+    "ldap": "VADS.RENAD"
+  },
+  {
+    "name": "Aditya Aji Pangestu",
+    "ldap": "VADS.AAJI"
+  },
+  {
+    "name": "Ananda Choirun Nisa",
+    "ldap": "VADS.ANANDAC"
+  },
+  {
+    "name": "Augen Widiyaningrum Khoirunnisa",
+    "ldap": "VADS.AUGENW"
+  },
+  {
+    "name": "Muchamad Nurul Maqin",
+    "ldap": "VADS.MUCHAMADN"
+  },
+  {
+    "name": "Nabila Novitasari",
+    "ldap": "VADS.NABILAN"
+  },
+  {
+    "name": "Ramadhana Aura Jamilah Krisnandar",
+    "ldap": "VADS.RAMADHANAA"
+  },
+  {
+    "name": "Haelin Nur Defita",
+    "ldap": "VADS.HAELINN"
+  },
+  {
+    "name": "Samuel Belva Diyogya",
+    "ldap": "VADS.SAMUELB"
+  },
+  {
+    "name": "Skolastika Widya",
+    "ldap": "VADS.SKOLASTIKAW"
+  },
+  {
+    "name": "Astuti Wahyuningsih",
+    "ldap": "VADS.ASTUTIW"
+  },
+  {
+    "name": "Hani Rafika Putri",
+    "ldap": "VADS.HANIR"
+  },
+  {
+    "name": "Laila Yuni Septiarini",
+    "ldap": "VADS.LAILAY"
+  },
+  {
+    "name": "Maulinda Rahmawati",
+    "ldap": "VADS.MAULINDAR"
+  },
+  {
+    "name": "Nadia Shafa Salsabilla Ichsania",
+    "ldap": "VADS.NADIAS"
+  },
+  {
+    "name": "Ninda Putri Kusumawardhani",
+    "ldap": "VADS.NINDAP"
+  },
+  {
+    "name": "Ramadhani astuti",
+    "ldap": "VADS.RAMADHA"
+  },
+  {
+    "name": "MUHAMMAD DESFRI GUNADI",
+    "ldap": "VADS.MDESFRI"
+  },
+  {
+    "name": "Retno Putri",
+    "ldap": "VADS.RETNOP"
+  },
+  {
+    "name": "Imeilia yulinda salma",
+    "ldap": "VADS.IMEILIA"
+  },
+  {
+    "name": "Arfiansah Wahyu Cahyo Asmoro",
+    "ldap": "VADS.ARFIANS"
+  },
+  {
+    "name": "Naila Salsabila",
+    "ldap": "VADS.NAILAS"
+  },
+  {
+    "name": "Aisyah Choirun Nisa",
+    "ldap": "VADS.AISYAHC"
+  },
+  {
+    "name": "Hasuna Mirati",
+    "ldap": "VADS.HASUNAM"
+  },
+  {
+    "name": "Widianto Wahyu Nugroho",
+    "ldap": "VADS.WIDIANT"
+  },
+  {
+    "name": "Ahadi Hanzalah",
+    "ldap": "VADS.AHADIH"
+  },
+  {
+    "name": "Dimas Setyawan Ramadhansyah",
+    "ldap": "VADS.DIMASS"
+  },
+  {
+    "name": "WAHYU OKTA CAHYA NUGROHO",
+    "ldap": "VADS.WAHYUO"
+  },
+  {
+    "name": "Nadya Dewi Hanum",
+    "ldap": "VADS.NADYAD"
+  },
+  {
+    "name": "Partini",
+    "ldap": "VADS.PARTINI"
+  },
+  {
+    "name": "Ade Putra Priadi",
+    "ldap": "VADS.ADEP"
+  },
+  {
+    "name": "Anita Nur Aini",
+    "ldap": "VADS.ANITAN"
+  },
+  {
+    "name": "Farkhan Baharuddin",
+    "ldap": "VADS.FARKHANB"
+  },
+  {
+    "name": "Hamizah",
+    "ldap": "VADS.HAMIZAHH"
+  },
+  {
+    "name": "Nita Apriyanti",
+    "ldap": "VADS.NITAA"
+  },
+  {
+    "name": "Nurlita Oktaviani",
+    "ldap": "VADS.NURLITAO"
+  },
+  {
+    "name": "Rochmatul Laili",
+    "ldap": "VADS.ROCHMATULL"
+  },
+  {
+    "name": "Andreas Supriyono",
+    "ldap": "VADS.ANDREASS"
+  },
+  {
+    "name": "Musfira Rahmi",
+    "ldap": "VADS.MUSFIRAR"
+  },
+  {
+    "name": "Reny Alvina Anwar",
+    "ldap": "VADS.RENYA"
+  },
+  {
+    "name": "Alifia Salma",
+    "ldap": "VADS.ALIFIAS"
+  },
+  {
+    "name": "Deara Ninggar Nirmala",
+    "ldap": "VADS.DEARAN"
+  },
+  {
+    "name": "Helena Tesalonika Makatita",
+    "ldap": "VADS.HELENAT"
+  },
+  {
+    "name": "Mufidlatul Hanifah",
+    "ldap": "VADS.MUFIDLATULH"
+  },
+  {
+    "name": "Rindang Kesuma Azzahra",
+    "ldap": "VADS.RINDANGK"
+  }
+];
+
+const supportMaster = [
+  {
+    "name": "Eka Arsyad Handayani",
+    "ldap": "VADS.EKAA"
+  },
+  {
+    "name": "Adelia",
+    "ldap": "VADS.ADELI1521"
+  },
+  {
+    "name": "Ilham Nur Fadillah",
+    "ldap": "VADS.ILHAMN"
+  },
+  {
+    "name": "Risma Saraswati",
+    "ldap": "VADS.RISMAS"
+  },
+  {
+    "name": "Cahya Ardiyansyah",
+    "ldap": "VADS.CARDIAN"
+  },
+  {
+    "name": "Isna Risfania",
+    "ldap": "VADS.ISNAR"
+  },
+  {
+    "name": "Irma Nur Rachmasari",
+    "ldap": "VADS.IRMAN"
+  },
+  {
+    "name": "Muhammad Iqbal Awwalul Ihsan",
+    "ldap": "VADS.MIQBAL1"
+  },
+  {
+    "name": "Aditya Surya Saputra",
+    "ldap": "VADS.adit1437"
+  },
+  {
+    "name": "Nafitta Nur Istifa",
+    "ldap": "VADS.NAFITTA"
+  },
+  {
+    "name": "Devie Fauziah",
+    "ldap": "VADS.DEVIEF"
+  },
+  {
+    "name": "Kharisatul Azizah Fitriana Zulfa",
+    "ldap": "VADS.KHARISA"
+  },
+  {
+    "name": "Rahmadani Ilham Prastiwi",
+    "ldap": "VADS.RAHMADA"
+  },
+  {
+    "name": "Wahyu Ridha Lathifah",
+    "ldap": "VADS.WAHYUR"
+  },
+  {
+    "name": "Ade Kristanto M",
+    "ldap": "VADS.ade1505"
+  },
+  {
+    "name": "Puja Deka Sucahyo",
+    "ldap": "VADS.PUJAD"
+  },
+  {
+    "name": "Rio Fauzi Bimantoro",
+    "ldap": "VADS.RIOVADS1428"
+  },
+  {
+    "name": "Muhammad Falahu Akbar",
+    "ldap": "VADS.falah1381"
+  },
+  {
+    "name": "Muhammad Rizal",
+    "ldap": "VADS.MRIZAL"
+  },
+  {
+    "name": "Ika Wahyu Tri Wigati",
+    "ldap": "VADS.IKAWAHYUT"
+  },
+  {
+    "name": "Hayyu Febriana",
+    "ldap": "VADS.HAYYUF"
+  },
+  {
+    "name": "Ninung Kumalasari",
+    "ldap": "VADS.NINUNGK"
+  },
+  {
+    "name": "Mahruf Eko Samiaji",
+    "ldap": "VADS.MAHRUFE"
+  },
+  {
+    "name": "Setia Ningrum",
+    "ldap": "VADS.SETIAN"
+  },
+  {
+    "name": "Rias Indah Kartika",
+    "ldap": "VADS.RIASI"
+  },
+  {
+    "name": "Carolus Darius Suban Koten",
+    "ldap": "VADS.CDARIUS"
+  },
+  {
+    "name": "Jasmine Celia Sahfitri",
+    "ldap": "VADS.JASMINE"
+  }
+];
+
+const supportByName = {};
+const supportByLdap = {};
+supportMaster.forEach(agent => {
+  agent.name = cleanText(agent.name);
+  agent.ldap = cleanText(agent.ldap);
+  supportByName[normalizeKey(agent.name)] = agent;
+  supportByLdap[normalizeKey(agent.ldap)] = agent;
+});
+
+function findSupportAgent(value) {
+  const key = normalizeKey(value);
+  if (!key) return null;
+  return supportByName[key] || supportByLdap[key] || null;
+}
+
+let rawDataBiasa = [];
+let rawDataWCT = [];
+let scheduleJakarta = {};
+let scheduleJogja = {};
+let finalMergedData = [];
+let cBiasaGlobal = 0;
+let cWCTGlobal = 0;
+let redisCountGlobal = 0;
+let unmappedCountGlobal = 0;
+
+function cleanText(value) {
+  return String(value ?? "")
+    .replace(/[\u200B-\u200F\uFEFF]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizeKey(value) {
+  return cleanText(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+const masterByName = {};
+const masterByLdap = {};
+
+agentMaster.forEach(agent => {
+  agent.name = cleanText(agent.name);
+  agent.ldap = cleanText(agent.ldap);
+  masterByName[normalizeKey(agent.name)] = agent;
+  masterByLdap[normalizeKey(agent.ldap)] = agent;
+});
+
+// Alias creator untuk agent utama: Imeilia dapat muncul di WCT
+// sebagai nama lengkap maupun nama singkat. Keduanya tetap dianggap
+// agent utama (bukan Support) dan mengarah ke master yang sama.
+const imeiliaMaster = masterByLdap[normalizeKey("VADS.IMEILIA")];
+if (imeiliaMaster) {
+  masterByName[normalizeKey("Imeilia Salma")] = imeiliaMaster;
+}
+
+function findRegularAgent(value) {
+  const key = normalizeKey(value);
+  if (!key) return null;
+  return masterByName[key] || masterByLdap[key] || null;
+}
+
+function findMasterAgent(value) {
+  return findRegularAgent(value);
+}
+
+function getCleanDateString(dObj) {
+  return `${dObj.getFullYear()}-${String(dObj.getMonth()+1).padStart(2,"0")}-${String(dObj.getDate()).padStart(2,"0")}`;
+}
+
+function formatDateToString(dateInput) {
+  if (dateInput === null || dateInput === undefined || dateInput === "") return "";
+  let inputStr = String(dateInput).trim();
+  if (inputStr.includes(" ")) inputStr = inputStr.split(" ")[0];
+
+  if (!isNaN(dateInput) && inputStr.length >= 5 && !inputStr.includes("-") && !inputStr.includes("/")) {
+    const d = new Date(Math.floor(parseFloat(dateInput) - 25569) * 86400 * 1000);
+    return getCleanDateString(d);
+  }
+
+  const d = new Date(inputStr);
+  if (!isNaN(d.getTime())) return getCleanDateString(d);
+  return inputStr;
+}
+
+function scheduleHour(scheduleValue) {
+  const s = cleanText(scheduleValue).toUpperCase();
+  if (!s || ["X","OFF","L","AL","ML","-"].includes(s)) return null;
+
+  // Supports 5, 5a, 5b, 5:30, 12:30, etc.
+  const match = s.match(/^(\d{1,2})(?::(\d{1,2}))?/);
+  if (!match) return null;
+
+  const hour = Number(match[1]);
+  const minute = match[2] ? Number(match[2]) : 0;
+  if (!Number.isFinite(hour) || hour < 0 || hour > 23) return null;
+  return hour + minute / 60;
+}
+
+function isEligibleSchedule(scheduleValue) {
+  const hour = scheduleHour(scheduleValue);
+  return hour !== null && hour >= 5 && hour < 15;
+}
+
+function scheduleStatus(scheduleValue) {
+  const s = cleanText(scheduleValue);
+  if (!s) return "TIDAK ADA SCHEDULE";
+  if (isEligibleSchedule(s)) return "ELIGIBLE 05-14";
+  return "TIDAK ELIGIBLE";
+}
+
+function mergeSchedule(target, source) {
+  Object.entries(source).forEach(([key, value]) => {
+    // Jakarta/Jogja are separate sources. If a key appears twice in the same
+    // source, the last valid row is retained.
+    target[key] = value;
+  });
+}
+
+function parseScheduleWorkbook(file, location, done) {
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, {type:"array"});
+
+      const targetSheetName = location === "JAKARTA" ? "Absenteeism" : "Absenteism";
+      const sheetName = workbook.SheetNames.find(name => cleanText(name).toLowerCase() === targetSheetName.toLowerCase());
+
+      if (!sheetName) {
+        showNotification("danger", `Sheet "${targetSheetName}" tidak ditemukan pada Schedule ${location}.`);
+        done(false);
+        return;
+      }
+
+      const sheet = workbook.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(sheet, {header:1, raw:true, defval:""});
+      const result = {};
+
+      const nameCol = 1; // B
+      const scheduleCol = location === "JAKARTA" ? 4 : 5; // E / F
+
+      rows.forEach(row => {
+        const rawName = cleanText(row[nameCol]);
+        const rawSchedule = cleanText(row[scheduleCol]);
+
+        if (!rawName || !rawSchedule) return;
+        if (normalizeKey(rawName) === "agentname") return;
+        if (normalizeKey(rawSchedule) === "schedulewfm") return;
+
+        const master = findRegularAgent(rawName);
+        if (!master) return; // section titles/header rows/support agents are ignored
+
+        result[normalizeKey(master.name)] = {
+          agentName: master.name,
+          ldap: master.ldap,
+          schedule: rawSchedule,
+          location
+        };
+      });
+
+      done(true, result);
+    } catch(err) {
+      console.error(err);
+      showNotification("danger", `Gagal membaca Schedule ${location}.`);
+      done(false);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+document.getElementById("fileBiasa").addEventListener("change", function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    try {
+      const workbook = XLSX.read(new Uint8Array(ev.target.result), {type:"array"});
+      rawDataBiasa = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {raw:false, defval:""});
+      document.getElementById("statusBiasa").classList.add("show");
+    } catch(err) {
+      showNotification("danger","Gagal membaca File Log Biasa.");
+    }
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+document.getElementById("fileWCT").addEventListener("change", function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    try {
+      const workbook = XLSX.read(new Uint8Array(ev.target.result), {type:"array"});
+      const sheetName = workbook.SheetNames.find(name => cleanText(name).toLowerCase() === "log.");
+      if (!sheetName) {
+        showNotification("danger",'Sheet "Log." tidak ditemukan.');
+        return;
+      }
+      rawDataWCT = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {raw:false, defval:""});
+      document.getElementById("statusWCT").classList.add("show");
+    } catch(err) {
+      showNotification("danger","Gagal membaca File WCT.");
+    }
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+document.getElementById("fileScheduleJakarta").addEventListener("change", function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  parseScheduleWorkbook(file, "JAKARTA", function(ok, result) {
+    if (!ok) return;
+    scheduleJakarta = result;
+    document.getElementById("statusScheduleJakarta").classList.add("show");
+    showNotification("success", `Schedule Jakarta berhasil diproses: ${Object.keys(scheduleJakarta).length} agent terpetakan.`);
+  });
+});
+
+document.getElementById("fileScheduleJogja").addEventListener("change", function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  parseScheduleWorkbook(file, "JOGJA", function(ok, result) {
+    if (!ok) return;
+    scheduleJogja = result;
+    document.getElementById("statusScheduleJogja").classList.add("show");
+    showNotification("success", `Schedule Jogja berhasil diproses: ${Object.keys(scheduleJogja).length} agent terpetakan.`);
+  });
+});
+
+function getScheduleForAgent(agentValue) {
+  const master = findMasterAgent(agentValue);
+  if (!master) return null;
+  const key = normalizeKey(master.name);
+
+  // If an agent exists in both files, Jakarta is preferred only as a deterministic
+  // fallback. Normally an agent should belong to one location.
+  return scheduleJakarta[key] || scheduleJogja[key] || null;
+}
+
+function getColumn(row, candidates, fallback="") {
+  const keys = Object.keys(row);
+  for (const candidate of candidates) {
+    const exact = keys.find(k => cleanText(k).toLowerCase() === candidate.toLowerCase());
+    if (exact !== undefined && row[exact] !== undefined && row[exact] !== null && String(row[exact]).trim() !== "") {
+      return row[exact];
+    }
+  }
+  for (const key of keys) {
+    const ck = cleanText(key).toLowerCase();
+    for (const candidate of candidates) {
+      const cc = candidate.toLowerCase();
+      if (ck.includes(cc)) {
+        return row[key];
+      }
+    }
+  }
+  return fallback;
+}
+
+function prosesSemuaData() {
+  if (Object.keys(scheduleJakarta).length === 0 && Object.keys(scheduleJogja).length === 0) {
+    showNotification("warning","Upload minimal satu file Schedule Jakarta/Jogja terlebih dahulu.");
+    return;
+  }
+
+  const date1 = document.getElementById("date1").value;
+  const date2 = document.getElementById("date2").value;
+  if (!date1) {
+    showNotification("warning","Pilih Tanggal Utama Filter.");
+    return;
+  }
+
+  const filterDates = [date1];
+  if (date2) filterDates.push(date2);
+
+  finalMergedData = [];
+  cBiasaGlobal = 0;
+  cWCTGlobal = 0;
+  redisCountGlobal = 0;
+  unmappedCountGlobal = 0;
+
+  // LOG BIASA
+  if (rawDataBiasa.length > 0) {
+    rawDataBiasa.forEach(row => {
+      const agentRaw = cleanText(getColumn(row, ["AGENT","Agent","Agent Name"], ""));
+      const createDate = formatDateToString(getColumn(row, ["CREATE DATE","Create Date","DAY","Day"], ""));
+      if (!agentRaw || !filterDates.includes(createDate)) return;
+
+      const master = findMasterAgent(agentRaw);
+      if (!master) return;
+
+      const scheduleInfo = getScheduleForAgent(master.name);
+      cBiasaGlobal++;
+
+      finalMergedData.push({
+        kategori:"BIASA",
+        caseId:getColumn(row, ["CASE ID","Case ID"], "-") || "-",
+        createDate,
+        creator:agentRaw,
+        creatorCanonical:master.name,
+        schedule:scheduleInfo ? scheduleInfo.schedule : "-",
+        scheduleLocation:scheduleInfo ? scheduleInfo.location : "-",
+        checker:"-",
+        checkerType:"pending",
+        loginId:getColumn(row, ["LOG IN ID","Log In ID"], "-") || "-",
+        msisdn:getColumn(row, ["MSISDN"], "-") || "-",
+        id1:getColumn(row, ["ID 1","ID1"], "-") || "-"
+      });
+    });
+  }
+
+  // LOG WCT
+  if (rawDataWCT.length > 0) {
+    rawDataWCT.forEach(row => {
+      const creatorRaw = cleanText(getColumn(row, ["Creator"], ""));
+      const createDate = formatDateToString(getColumn(row, ["Case Creation Time","CREATE DATE","Create Date"], ""));
+      if (!creatorRaw || !filterDates.includes(createDate)) return;
+
+      // Creator WCT boleh berasal dari:
+      // 1) 234 master agent utama, atau
+      // 2) daftar Support tambahan.
+      // Creator di luar kedua daftar langsung diabaikan.
+      const master = findRegularAgent(creatorRaw);
+      const support = findSupportAgent(creatorRaw);
+      if (!master && !support) return;
+
+      const scheduleInfo = master ? getScheduleForAgent(master.name) : null;
+      const isSupport = !master && !!support;
+      const canonicalName = master ? master.name : support.name;
+
+      cWCTGlobal++;
+
+      finalMergedData.push({
+        kategori:"WCT",
+        caseId:getColumn(row, ["Case Code","CASE ID","Case ID"], "-") || "-",
+        createDate,
+        creator:creatorRaw,
+        creatorCanonical:canonicalName,
+        schedule:isSupport ? "Support" : (scheduleInfo ? scheduleInfo.schedule : "-"),
+        scheduleLocation:isSupport ? "SUPPORT" : (scheduleInfo ? scheduleInfo.location : "-"),
+        checker:"-",
+        checkerType:isSupport ? "support" : "pending",
+        loginId:getColumn(row, ["LOG IN ID ","LOG IN ID","Log In ID"], "-") || "-",
+        msisdn:getColumn(row, ["Service Number","MSISDN"], "-") || "-",
+        id1:getColumn(row, ["ID1","ID 1"], "-") || "-"
+      });
+    });
+  }
+
+  renderUnifiedTable();
+  document.getElementById("btnBagiChecker").disabled = finalMergedData.length === 0;
+  document.getElementById("btnExport").disabled = finalMergedData.length === 0;
+}
+
+function bagiCheckerOtomatis() {
+  if (finalMergedData.length === 0) return;
+
+  const allSchedule = {};
+  Object.values(scheduleJakarta).forEach(x => allSchedule[normalizeKey(x.agentName)] = x);
+  Object.values(scheduleJogja).forEach(x => {
+    if (!allSchedule[normalizeKey(x.agentName)]) allSchedule[normalizeKey(x.agentName)] = x;
+  });
+
+  // Eligible receiver list: schedule starts from 05:00 up to before 15:00.
+  // This includes 5a, 5b, 5:30, 6, ..., 14a, etc.
+  const eligibleAgents = agentMaster
+    .map(agent => allSchedule[normalizeKey(agent.name)])
+    .filter(Boolean)
+    .filter(info => isEligibleSchedule(info.schedule));
+
+  if (eligibleAgents.length === 0) {
+    showNotification("danger","Tidak ada agent dengan schedule 05-14 yang ditemukan.");
+    return;
+  }
+
+  // Reset all assignments.
+  finalMergedData.forEach(item => {
+    if (item.checkerType !== "unmapped") {
+      item.checker = "-";
+      item.checkerType = "pending";
+    }
+  });
+
+  // 1) Creator with schedule 05-14 keeps ownership.
+  // 2) Creator with schedule 15+, X, OFF, etc. enters redistribution pool.
+  // 3) Unknown creator remains unmapped and is not silently reassigned.
+  const redistributionPool = [];
+
+  finalMergedData.forEach(item => {
+    if (item.checkerType === "unmapped") return;
+
+    // Support tetap dikerjakan. Karena Support tidak punya schedule 05-14,
+    // case Support masuk ke pool redistribusi dan dibagi rata ke agent
+    // yang duty 05-14. Schedule asli tetap ditampilkan sebagai "Support".
+    if (item.checkerType === "support") {
+      item.checker = "-";
+      item.checkerType = "redistribution";
+      redistributionPool.push(item);
+      return;
+    }
+
+    const master = findRegularAgent(item.creatorCanonical || item.creator);
+    const scheduleInfo = master ? getScheduleForAgent(master.name) : null;
+
+    if (master && scheduleInfo && isEligibleSchedule(scheduleInfo.schedule)) {
+      item.creatorCanonical = master.name;
+      item.schedule = scheduleInfo.schedule;
+      item.scheduleLocation = scheduleInfo.location;
+      item.checker = master.name;
+      item.checkerType = "ownership";
+    } else {
+      item.checker = "-";
+      item.checkerType = "redistribution";
+      redistributionPool.push(item);
+    }
+  });
+
+  // Equal additional distribution. This intentionally does NOT balance total
+  // workload; each eligible agent receives approximately the same number of
+  // redistribution cases on top of their own cases.
+  redistributionPool.forEach((item, index) => {
+    const target = eligibleAgents[index % eligibleAgents.length];
+    item.checker = target.agentName;
+    item.checkerType = "redistribution";
+    item.checkerSchedule = target.schedule;
+  });
+
+  redisCountGlobal = redistributionPool.length;
+
+  showNotification(
+    "success",
+    `Checker berhasil dibagi. ${redistributionPool.length} case masuk redistribusi ke ${eligibleAgents.length} agent duty 05-14.`
+  );
+
+  renderUnifiedTable();
+}
+
+function renderUnifiedTable() {
+  const tbody = document.getElementById("tableBody");
+  tbody.innerHTML = "";
+
+  if (finalMergedData.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="10" class="empty-state">Tidak ada data sesuai filter.</td></tr>';
+    return;
+  }
+
+  finalMergedData.forEach((item,index) => {
+    const badgeClass = item.kategori === "WCT" ? "type-wct" : "type-biasa";
+
+    let scheduleHtml = "-";
+    if (item.schedule === "Support") {
+      scheduleHtml = '<span class="badge-schedule">Support</span>';
+    } else if (item.schedule === "TIDAK TERPETAKAN") {
+      scheduleHtml = '<span class="badge-unknown">TIDAK TERPETAKAN</span>';
+    } else if (item.schedule && item.schedule !== "-") {
+      const eligible = isEligibleSchedule(item.schedule);
+      scheduleHtml = `<span class="${eligible ? "badge-schedule" : "badge-ineligible"}">${escapeHtml(item.schedule)}</span>`;
+    }
+
+    let checkerHtml = "-";
+    if (item.checkerType === "ownership") {
+      checkerHtml = `<span class="checker-text">${escapeHtml(item.checker)}</span>`;
+    } else if (item.checkerType === "redistribution") {
+      checkerHtml = `<span class="checker-redis">${escapeHtml(item.checker)}</span>`;
+    } else if (item.checkerType === "unmapped") {
+      checkerHtml = '<span class="badge-unknown">UNMAPPED</span>';
+    }
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><b>${index+1}</b></td>
+      <td><span class="badge-type ${badgeClass}">${escapeHtml(item.kategori)}</span></td>
+      <td style="font-weight:600">${escapeHtml(item.caseId)}</td>
+      <td>${escapeHtml(item.createDate)}</td>
+      <td><span class="creator-text">${escapeHtml(item.creator)}</span></td>
+      <td>${scheduleHtml}</td>
+      <td>${escapeHtml(item.loginId)}</td>
+      <td>${escapeHtml(item.msisdn)}</td>
+      <td><div style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(item.id1)}</div></td>
+      <td>${checkerHtml}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById("countBiasa").innerText = cBiasaGlobal;
+  document.getElementById("countWCT").innerText = cWCTGlobal;
+  document.getElementById("countRedis").innerText = redisCountGlobal;
+  document.getElementById("countUnmapped").innerText = cWCTGlobal;
+
+  document.getElementById("infoHariIni").innerHTML =
+    `Master Agent: <b>${agentMaster.length}</b><br><small>Eligible Checker: <b>${getEligibleCountText()}</b></small>`;
+
+  document.getElementById("resultContainer").style.display = "flex";
+}
+
+function getEligibleCountText() {
+  const map = {};
+  Object.values(scheduleJakarta).forEach(x => map[normalizeKey(x.agentName)] = x);
+  Object.values(scheduleJogja).forEach(x => { if (!map[normalizeKey(x.agentName)]) map[normalizeKey(x.agentName)] = x; });
+  return Object.values(map).filter(x => isEligibleSchedule(x.schedule)).length;
+}
+
+function exportExcelCombined() {
+  if (finalMergedData.length === 0) return;
+
+  const exportRows = finalMergedData.map((item,index) => ({
+    "No":index+1,
+    "KATEGORI DATA":item.kategori,
+    "CASE_ID":String(item.caseId ?? ""),
+    "CREATE_DATE":String(item.createDate ?? ""),
+    "CREATOR":String(item.creator ?? ""),
+    "SCHEDULE":String(item.schedule ?? ""),
+    "LOG IN ID":String(item.loginId ?? ""),
+    "MSISDN":String(item.msisdn ?? ""),
+    "ID 1":String(item.id1 ?? ""),
+    "CHECKER":String(item.checker ?? "")
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(exportRows);
+  worksheet["!cols"] = [
+    {wch:6},{wch:15},{wch:20},{wch:15},{wch:28},{wch:14},{wch:18},{wch:18},{wch:24},{wch:28}
+  ];
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook,worksheet,"Checker Distribution");
+  XLSX.writeFile(workbook,"Final_Checker_Distribution_Report.xlsx");
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g,"&amp;")
+    .replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;")
+    .replace(/'/g,"&#039;");
+}
+
+function showNotification(type,message) {
+  const notif = document.getElementById("notification");
+  notif.className = `alert alert-${type}`;
+  notif.innerText = message;
+  notif.style.display = "block";
+  clearTimeout(window.__notifTimer);
+  window.__notifTimer = setTimeout(() => { notif.style.display = "none"; }, 7000);
+}
+</script>
+</body>
+</html>
