@@ -59,6 +59,15 @@ export function parseLogInWorker(kind, buffer) {
   return call({ type: "parse", kind, buffer }, [buffer]);
 }
 
+/**
+ * Parse satu file Schedule di worker.
+ * Buffer ditransfer agar parsing workbook tidak membekukan UI utama.
+ * Hasil yang dikembalikan hanya object schedule yang sudah dipetakan.
+ */
+export function parseScheduleInWorker(location, buffer) {
+  return call({ type: "parseSchedule", location, buffer }, [buffer]);
+}
+
 /** Jalankan penggabungan (computeMergedData) di worker atas baris yang tersimpan. */
 export function mergeInWorker({ scheduleJakarta, scheduleJogja, date1, date2, overrides }) {
   return call({ type: "merge", scheduleJakarta, scheduleJogja, date1, date2, overrides });
