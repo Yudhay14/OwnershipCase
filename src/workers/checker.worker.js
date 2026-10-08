@@ -1,16 +1,13 @@
 import { parseLogBiasaBuffer, parseLogWCTBuffer } from "../utils/readWorkbooks.js";
+import { parseScheduleWorkbook } from "../utils/schedule.js";
 import { computeMergedData } from "../utils/processing.js";
 import { setOverrides } from "../utils/agentStore.js";
 
 /**
  * Web Worker untuk file besar (WCT bisa 39-50 MB).
  *
- * `XLSX.read` pada file 65 MB memakan ±6 detik (setelah mode dense) dan ratusan
- * MB memori. Dijalankan di main thread, UI beku selama itu. Karena itu parsing
- * DAN penggabungan dijalankan di sini; yang dikirim balik ke UI hanya hasil
- * akhir yang sudah difilter, bukan ratusan ribu baris mentah.
- *
- * Algorithmenya tetap yang ada di src/utils/* - tidak ada logika baru di sini.
+ * Parsing log DAN schedule dijalankan di worker agar main thread/UI tetap responsif.
+ * Worker memakai fungsi yang sama dari src/utils/*.
  */
 
 const rawRows = { biasa: [], wct: [] };
@@ -19,7 +16,7 @@ function reply(payload) {
   self.postMessage(payload);
 }
 
-self.onmessage = (event) => {
+self.onmessage = async (event) => {
   const message = event.data || {};
   const { id, type } = message;
 
@@ -37,6 +34,28 @@ self.onmessage = (event) => {
 
       rawRows[message.kind] = parsed.rows;
       reply({ id, ok: true, rows: parsed.rows.length });
+      return;
+    }
+
+    if (type === "parseSchedule") {
+      const parsed = await parseScheduleWorkbook(
+        new Blob([message.buffer], {
+          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        }),
+        message.location
+      );
+
+      if (!parsed.ok) {
+        reply({ id, ok: false, message: parsed.message });
+        return;
+      }
+
+      reply({
+        id,
+        ok: true,
+        result: parsed.result,
+        rows: Object.keys(parsed.result).length,
+      });
       return;
     }
 
