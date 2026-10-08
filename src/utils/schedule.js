@@ -17,7 +17,7 @@ export function scheduleHour(scheduleValue) {
   const s = cleanText(scheduleValue).toUpperCase();
   if (!s || ["X", "OFF", "L", "AL", "ML", "-"].includes(s)) return null;
 
-  // Supports 5, 5a, 5b, 5:30, 12:30, etc.
+  // Supports 5, 5a, 5b, 5:30, 12:30, 18:30, etc.
   const match = s.match(/^(\d{1,2})(?::(\d{1,2}))?/);
   if (!match) return null;
 
@@ -37,6 +37,32 @@ export function scheduleStatus(scheduleValue) {
   if (!s) return "TIDAK ADA SCHEDULE";
   if (isEligibleSchedule(s)) return "ELIGIBLE 05-14";
   return "TIDAK ELIGIBLE";
+}
+
+/**
+ * Converts Excel time serials such as:
+ *   0.5                  -> "12:00"
+ *   0.7708333333333334   -> "18:30"
+ *
+ * Important: numeric schedule codes such as 5, 7, 10, 14 remain untouched.
+ */
+function normalizeScheduleDisplay(value) {
+  if (value === null || value === undefined || value === "") return "";
+
+  // Excel stores time-only values as fractions of one day.
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0 && value < 1) {
+    const totalMinutes = Math.round(value * 24 * 60) % (24 * 60);
+    const hour = Math.floor(totalMinutes / 60);
+    const minute = totalMinutes % 60;
+    return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+  }
+
+  // Handle workbook cells that SheetJS may expose as Date objects.
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return `${String(value.getHours()).padStart(2, "0")}:${String(value.getMinutes()).padStart(2, "0")}`;
+  }
+
+  return cleanText(value);
 }
 
 /**
@@ -94,7 +120,7 @@ export async function parseScheduleWorkbook(file, location) {
 
     rows.forEach((row) => {
       const rawName = cleanText(row[nameCol]);
-      const rawSchedule = cleanText(row[scheduleCol]);
+      const rawSchedule = normalizeScheduleDisplay(row[scheduleCol]);
 
       if (!rawName || !rawSchedule) return;
       if (normalizeKey(rawName) === "agentname") return;
