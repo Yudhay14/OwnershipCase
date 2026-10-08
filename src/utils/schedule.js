@@ -3,7 +3,7 @@ import { cleanText, normalizeKey } from "./text.js";
 import { findRegularAgent, findMasterAgent } from "./agents.js";
 
 /**
- * Schedule helpers - ported verbatim from ownership_digital_checker_v6.html.
+ * Schedule helpers.
  *
  * LOCKED RULES:
  *  - Jakarta sheet "Absenteeism" (case-insensitive), Agent Name col B, Schedule WFM col E.
@@ -40,32 +40,6 @@ export function scheduleStatus(scheduleValue) {
 }
 
 /**
- * Converts Excel time serials such as:
- *   0.5                  -> "12:00"
- *   0.7708333333333334   -> "18:30"
- *
- * Important: numeric schedule codes such as 5, 7, 10, 14 remain untouched.
- */
-function normalizeScheduleDisplay(value) {
-  if (value === null || value === undefined || value === "") return "";
-
-  // Excel stores time-only values as fractions of one day.
-  if (typeof value === "number" && Number.isFinite(value) && value >= 0 && value < 1) {
-    const totalMinutes = Math.round(value * 24 * 60) % (24 * 60);
-    const hour = Math.floor(totalMinutes / 60);
-    const minute = totalMinutes % 60;
-    return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
-  }
-
-  // Handle workbook cells that SheetJS may expose as Date objects.
-  if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return `${String(value.getHours()).padStart(2, "0")}:${String(value.getMinutes()).padStart(2, "0")}`;
-  }
-
-  return cleanText(value);
-}
-
-/**
  * Legacy `getScheduleForAgent(agentValue)`: resolves the agent first, then looks
  * the schedule up by canonical name. Jakarta is the deterministic fallback.
  */
@@ -91,14 +65,19 @@ export function getEligibleCount(scheduleJakarta, scheduleJogja) {
 
 /**
  * Reads one Schedule workbook and returns { ok, result } or { ok:false, message }.
- * The sheet lookup, column indexes and row filtering mirror the legacy parser.
+ *
+ * IMPORTANT:
+ * Use raw:false so Excel time-formatted cells are returned by SheetJS as their
+ * displayed values (for example 0.7708333333333334 -> "18:30") instead of the
+ * raw Excel serial. This keeps the existing schedule logic compatible while
+ * avoiding an extra conversion pass over the full sheet.
  */
 export async function parseScheduleWorkbook(file, location) {
   const targetSheetName = location === "JAKARTA" ? "Absenteeism" : "Absenteism";
 
   try {
     const buffer = await file.arrayBuffer();
-    const workbook = XLSX.read(new Uint8Array(buffer), { type: "array" });
+    const workbook = XLSX.read(new Uint8Array(buffer), { type: "array", dense: true });
 
     const sheetName = workbook.SheetNames.find(
       (name) => cleanText(name).toLowerCase() === targetSheetName.toLowerCase()
@@ -112,7 +91,15 @@ export async function parseScheduleWorkbook(file, location) {
     }
 
     const sheet = workbook.Sheets[sheetName];
-    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: "" });
+
+    // raw:false preserves Excel's visible time format, e.g. 18:30.
+    const rows = XLSX.utils.sheet_to_json(sheet, {
+      header: 1,
+      raw: false,
+      defval: "",
+      dense: true,
+    });
+
     const result = {};
 
     const nameCol = 1; // B
@@ -120,7 +107,7 @@ export async function parseScheduleWorkbook(file, location) {
 
     rows.forEach((row) => {
       const rawName = cleanText(row[nameCol]);
-      const rawSchedule = normalizeScheduleDisplay(row[scheduleCol]);
+      const rawSchedule = cleanText(row[scheduleCol]);
 
       if (!rawName || !rawSchedule) return;
       if (normalizeKey(rawName) === "agentname") return;
