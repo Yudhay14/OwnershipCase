@@ -9,20 +9,9 @@ import {
   clearLogInWorker,
   mergeInWorker,
   parseLogInWorker,
+  parseScheduleInWorker,
 } from "../utils/checkerWorker.js";
 import { useAgentStore } from "./useAgentStore.js";
-
-/**
- * Orchestrates the LOCKED business flow (upload -> schedule -> filter -> process
- * -> distribute -> export) and exposes it to the presentation layer.
- *
- * No algorithm lives here: every rule is delegated to src/utils/*, which are
- * ports of the legacy code.
- *
- * File log (WCT bisa 39-50 MB) diparse dan digabung di Web Worker supaya main
- * thread tidak beku. Worker memakai fungsi yang sama dari src/utils/*, jadi
- * hasilnya identik dengan jalur main thread.
- */
 
 const EMPTY_FILE = { name: "", size: 0, lastModified: 0, status: "idle", rows: 0 };
 
@@ -36,10 +25,9 @@ const PROCESS_STAGES = [
 /**
  * @param {{ pushToast: (type: string, message: string) => void }} deps
  *   pushToast berasal dari useToasts() supaya semua menu berbagi satu tumpukan
- *   notifikasi. Yang berubah hanya kepemilikan state toast - pesannya tetap sama.
+ *   notifikasi.
  */
 export function useCheckerApp({ pushToast }) {
-  // Jumlah Master Agent ikut daftar efektif, jadi berubah saat admin menambah/menghapus.
   const { masterCount } = useAgentStore();
 
   const [files, setFiles] = useState({
@@ -63,7 +51,6 @@ export function useCheckerApp({ pushToast }) {
   const [isParsing, setIsParsing] = useState(false);
   const [processStage, setProcessStage] = useState(PROCESS_STAGES[0]);
 
-  // Raw log rows: hanya dipakai di jalur fallback main thread (tanpa Worker).
   const rawBiasaRef = useRef([]);
   const rawWCTRef = useRef([]);
 
@@ -71,10 +58,6 @@ export function useCheckerApp({ pushToast }) {
     setFiles((current) => ({ ...current, [key]: { ...current[key], ...patch } }));
   }, []);
 
-  /**
-   * Parse satu file log. Di mode Worker, baris mentah tetap tinggal di worker
-   * dan yang kembali hanya jumlah baris.
-   */
   const parseLog = useCallback(async (kind, file) => {
     const message = `Gagal membaca File ${kind === "wct" ? "WCT" : "Log Biasa"}.`;
     try {
@@ -92,8 +75,6 @@ export function useCheckerApp({ pushToast }) {
       return { ok: false, message };
     }
   }, []);
-
-  /* ---------------------------------------------------------------- uploads */
 
   const loadLog = useCallback(
     async (key, file) => {
@@ -144,22 +125,41 @@ export function useCheckerApp({ pushToast }) {
         status: "processing",
         rows: 0,
       });
+      setIsParsing(true);
 
-      const res = await parseScheduleWorkbook(file, location);
-      if (!res.ok) {
+      try {
+        let res;
+
+        if (WORKER_SUPPORTED) {
+          // Schedule parsing is also moved off the main thread because large
+          // schedule workbooks can otherwise freeze the entire browser tab.
+          const buffer = await file.arrayBuffer();
+          res = await parseScheduleInWorker(location, buffer);
+        } else {
+          res = await parseScheduleWorkbook(file, location);
+        }
+
+        if (!res.ok) {
+          setFileState(key, { status: "error" });
+          pushToast("danger", res.message);
+          return;
+        }
+
+        if (location === "JAKARTA") setScheduleJakarta(res.result);
+        else setScheduleJogja(res.result);
+
+        setFileState(key, { status: "ready", rows: Object.keys(res.result).length });
+        pushToast(
+          "success",
+          `Schedule ${label} berhasil diproses: ${Object.keys(res.result).length} agent terpetakan.`
+        );
+      } catch (err) {
+        console.error(err);
         setFileState(key, { status: "error" });
-        pushToast("danger", res.message);
-        return;
+        pushToast("danger", `Gagal membaca Schedule ${label}.`);
+      } finally {
+        setIsParsing(false);
       }
-
-      if (location === "JAKARTA") setScheduleJakarta(res.result);
-      else setScheduleJogja(res.result);
-
-      setFileState(key, { status: "ready", rows: Object.keys(res.result).length });
-      pushToast(
-        "success",
-        `Schedule ${label} berhasil diproses: ${Object.keys(res.result).length} agent terpetakan.`
-      );
     },
     [pushToast, setFileState]
   );
@@ -171,16 +171,12 @@ export function useCheckerApp({ pushToast }) {
     if (key === "jakarta") setScheduleJakarta({});
     if (key === "jogja") setScheduleJogja({});
 
-    // Baris mentah di worker juga dibuang supaya memori langsung kembali.
     if (WORKER_SUPPORTED && (key === "biasa" || key === "wct")) {
       clearLogInWorker(key).catch((err) => console.error(err));
     }
   }, []);
 
-  /* --------------------------------------------------------------- workflow */
-
   const runProcessing = useCallback(async () => {
-    // Same guard order as the legacy `prosesSemuaData()`.
     if (
       Object.keys(scheduleJakarta).length === 0 &&
       Object.keys(scheduleJogja).length === 0
@@ -197,7 +193,6 @@ export function useCheckerApp({ pushToast }) {
     setIsProcessing(true);
     setProcessStage(PROCESS_STAGES[0]);
 
-    // Visual staging only - the computation itself is unchanged.
     let step = 0;
     const timer = setInterval(() => {
       step += 1;
@@ -213,8 +208,6 @@ export function useCheckerApp({ pushToast }) {
             scheduleJogja,
             date1,
             date2,
-            // Worker tidak punya localStorage, jadi daftar agent efektif
-            // (termasuk tambahan admin) dikirim eksplisit.
             overrides: getOverrides(),
           })
         : computeMergedData({
@@ -246,7 +239,6 @@ export function useCheckerApp({ pushToast }) {
   const runDistribution = useCallback(() => {
     if (finalMergedData.length === 0) return;
 
-    // Work on copies so React state stays immutable; the algorithm is unchanged.
     const draft = finalMergedData.map((item) => ({ ...item }));
     const res = distributeCheckers(draft, scheduleJakarta, scheduleJogja);
 
@@ -268,8 +260,6 @@ export function useCheckerApp({ pushToast }) {
     exportExcelCombined(finalMergedData);
   }, [finalMergedData]);
 
-  /* ----------------------------------------------------------------- derived */
-
   const eligibleCount = useMemo(
     () => getEligibleCount(scheduleJakarta, scheduleJogja),
     [scheduleJakarta, scheduleJogja]
@@ -281,7 +271,6 @@ export function useCheckerApp({ pushToast }) {
   );
 
   return {
-    // data + state
     files,
     date1,
     date2,
@@ -295,7 +284,6 @@ export function useCheckerApp({ pushToast }) {
     isParsing,
     processStage,
 
-    // actions
     setDate1,
     setDate2,
     handleLogBiasa,
